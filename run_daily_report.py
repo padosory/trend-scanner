@@ -66,7 +66,8 @@ def main() -> None:
         try:
             df = fetch_ohlcv(signal.ticker, chart_start, chart_end)
             df = add_indicators(df)
-            charts[signal.ticker] = make_chart_div(signal.ticker, df, effective_date)
+            charts[signal.ticker] = make_chart_div(signal.ticker, df, effective_date,
+                                                   high_52w=signal.high_52w)
         except Exception as exc:  # noqa: BLE001
             logger.debug("차트 생성 실패 %s: %s", signal.ticker, exc)
 

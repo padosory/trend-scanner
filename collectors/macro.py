@@ -1,7 +1,4 @@
-"""거시경제 지표 수집: KOSPI, USD/KRW.
-
-FinanceDataReader(FDR)로 최근 2 거래일을 받아 전일 종가와 전전일 대비 변화율을 계산한다.
-"""
+"""거시경제 지표 수집: KOSPI, KOSDAQ, S&P 500, NASDAQ, USD/KRW."""
 
 import logging
 from dataclasses import dataclass
@@ -16,46 +13,67 @@ class MacroData:
     date: pd.Timestamp
     kospi_close: float
     kospi_change_pct: float
+    kosdaq_close: float
+    kosdaq_change_pct: float
+    sp500_close: float
+    sp500_change_pct: float
+    nasdaq_close: float
+    nasdaq_change_pct: float
     usdkrw: float
     usdkrw_change_pct: float
 
 
+def _fetch_series(fdr, symbol: str, start: str, end: str) -> tuple[float, float]:
+    """종가와 전일 대비 변화율(%) 반환. 실패 시 (nan, nan)."""
+    try:
+        df = fdr.DataReader(symbol, start, end)
+        if df.empty or len(df) < 2:
+            return float("nan"), float("nan")
+        close = float(df["Close"].iloc[-1])
+        prev  = float(df["Close"].iloc[-2])
+        return close, (close / prev - 1) * 100
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("%s 조회 실패: %s", symbol, exc)
+        return float("nan"), float("nan")
+
+
 def fetch(target_date: str) -> "MacroData | None":
     """target_date(YYYYMMDD) 이하 마지막 거래일 기준 거시경제 스냅샷을 반환한다."""
-    import FinanceDataReader as fdr  # 런타임 임포트 — 설치 확인 후 사용
+    import FinanceDataReader as fdr
 
     end = pd.Timestamp(target_date)
     start = (end - pd.DateOffset(days=15)).strftime("%Y-%m-%d")
     end_str = end.strftime("%Y-%m-%d")
 
+    # KOSPI 는 필수 — 실패 시 None 반환
     try:
-        kospi = fdr.DataReader("KS11", start, end_str)
-        if kospi.empty or len(kospi) < 2:
+        kospi_df = fdr.DataReader("KS11", start, end_str)
+        if kospi_df.empty or len(kospi_df) < 2:
             logger.warning("KOSPI 데이터 부족")
             return None
-        kospi_close = float(kospi["Close"].iloc[-1])
-        kospi_prev = float(kospi["Close"].iloc[-2])
-        kospi_chg = (kospi_close / kospi_prev - 1) * 100
-        scan_date: pd.Timestamp = kospi.index[-1]
+        kospi_close = float(kospi_df["Close"].iloc[-1])
+        kospi_prev  = float(kospi_df["Close"].iloc[-2])
+        kospi_chg   = (kospi_close / kospi_prev - 1) * 100
+        scan_date: pd.Timestamp = kospi_df.index[-1]
     except Exception as exc:  # noqa: BLE001
         logger.warning("KOSPI 조회 실패: %s", exc)
         return None
 
-    usdkrw_close = float("nan")
-    usdkrw_chg = float("nan")
-    try:
-        fx = fdr.DataReader("USD/KRW", start, end_str)
-        if not fx.empty and len(fx) >= 2:
-            usdkrw_close = float(fx["Close"].iloc[-1])
-            usdkrw_prev = float(fx["Close"].iloc[-2])
-            usdkrw_chg = (usdkrw_close / usdkrw_prev - 1) * 100
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("USD/KRW 조회 실패: %s", exc)
+    kosdaq_close, kosdaq_chg  = _fetch_series(fdr, "KQ11",    start, end_str)
+    sp500_close,  sp500_chg   = _fetch_series(fdr, "US500",   start, end_str)
+    nasdaq_close, nasdaq_chg  = _fetch_series(fdr, "IXIC",    start, end_str)
+    usdkrw_close, usdkrw_chg = _fetch_series(fdr, "USD/KRW", start, end_str)
 
     return MacroData(
         date=scan_date,
         kospi_close=kospi_close,
         kospi_change_pct=kospi_chg,
+        kosdaq_close=kosdaq_close,
+        kosdaq_change_pct=kosdaq_chg,
+        sp500_close=sp500_close,
+        sp500_change_pct=sp500_chg,
+        nasdaq_close=nasdaq_close,
+        nasdaq_change_pct=nasdaq_chg,
         usdkrw=usdkrw_close,
         usdkrw_change_pct=usdkrw_chg,
     )

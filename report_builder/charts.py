@@ -10,7 +10,8 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def make_chart_div(ticker: str, df: pd.DataFrame, scan_date: pd.Timestamp) -> str:
+def make_chart_div(ticker: str, df: pd.DataFrame, scan_date: pd.Timestamp,
+                   high_52w: float | None = None) -> str:
     """최근 120 거래일 캔들스틱+거래량 차트를 HTML div 문자열로 반환한다."""
     try:
         import plotly.graph_objects as go
@@ -43,18 +44,22 @@ def make_chart_div(ticker: str, df: pd.DataFrame, scan_date: pd.Timestamp) -> st
             go.Scatter(
                 x=recent.index, y=recent["resistance_60"],
                 mode="lines", name="저항(60일)",
-                line=dict(color="orange", width=1, dash="dash"),
+                line=dict(color="#FF6B00", width=1.5, dash="dash"),
             ),
             row=1, col=1,
         )
 
-    if "high_52w" in recent.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=recent.index, y=recent["high_52w"],
-                mode="lines", name="52주고가",
-                line=dict(color="purple", width=1, dash="dot"),
-            ),
+    # high_52w: 스캔에서 계산된 값을 수평선으로 표시 (차트 기간이 짧아 rolling이 NaN되는 문제 회피)
+    h52 = high_52w
+    if h52 is None and "high_52w" in recent.columns:
+        h52 = recent["high_52w"].dropna().iloc[-1] if not recent["high_52w"].dropna().empty else None
+    if h52 is not None:
+        fig.add_hline(
+            y=h52,
+            line=dict(color="#00BFFF", width=2, dash="dot"),
+            annotation_text="52주고가",
+            annotation_position="top right",
+            annotation_font=dict(color="#00BFFF", size=11),
             row=1, col=1,
         )
 

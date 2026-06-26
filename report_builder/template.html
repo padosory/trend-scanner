@@ -1,18 +1,52 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>트렌드 스캔 — {{ scan_date }}</title>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 <style>
+:root {
+  --bg:        #f0f2f5;
+  --surface:   #ffffff;
+  --surface2:  #f8f9fa;
+  --border:    #e8eaed;
+  --text:      #1a1a2e;
+  --text2:     #555;
+  --text3:     #888;
+  --accent:    #1a73e8;
+  --up:        #ef5350;
+  --down:      #26a69a;
+  --ai-bg:     #f1f8e9;
+  --ai-text:   #2e7d32;
+  --shadow:    0 1px 4px rgba(0,0,0,.08);
+  --shadow-h:  0 4px 16px rgba(0,0,0,.12);
+}
+[data-theme="dark"] {
+  --bg:        #0d1117;
+  --surface:   #161b22;
+  --surface2:  #21262d;
+  --border:    #30363d;
+  --text:      #e6edf3;
+  --text2:     #b1bac4;
+  --text3:     #768390;
+  --accent:    #58a6ff;
+  --up:        #f87171;
+  --down:      #34d399;
+  --ai-bg:     #1a2e1a;
+  --ai-text:   #86efac;
+  --shadow:    0 1px 4px rgba(0,0,0,.4);
+  --shadow-h:  0 4px 16px rgba(0,0,0,.6);
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
-  background: #f0f2f5;
-  color: #1a1a2e;
+  background: var(--bg);
+  color: var(--text);
   line-height: 1.6;
+  transition: background .2s, color .2s;
 }
 
 .container {
@@ -21,100 +55,148 @@ body {
   padding: 24px 16px;
 }
 
+/* ── 헤더 ── */
 header {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-header h1 {
-  font-size: 1.7rem;
+.header-title h1 {
+  font-size: 1.5rem;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--text);
 }
 
 .scan-date {
-  font-size: 0.95rem;
-  color: #666;
-  margin-top: 4px;
+  font-size: 0.9rem;
+  color: var(--text3);
+  margin-top: 2px;
 }
+
+.theme-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.theme-btn:hover { background: var(--border); }
 
 /* ── 섹션 공통 ── */
 section {
-  background: #fff;
+  background: var(--surface);
   border-radius: 12px;
   padding: 20px 24px;
   margin-bottom: 20px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  box-shadow: var(--shadow);
+  transition: background .2s, box-shadow .2s;
 }
 
 section h2 {
-  font-size: 1.05rem;
+  font-size: 1.0rem;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
   margin-bottom: 14px;
   padding-bottom: 8px;
-  border-bottom: 2px solid #e8eaed;
+  border-bottom: 2px solid var(--border);
 }
 
 /* ── 거시경제 ── */
 .macro-grid {
   display: flex;
-  gap: 16px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
 .macro-card {
   flex: 1;
-  min-width: 140px;
-  background: #f8f9fa;
+  min-width: 130px;
+  background: var(--surface2);
   border-radius: 8px;
   padding: 14px 18px;
+  border: 1px solid var(--border);
 }
 
 .macro-label {
-  font-size: 0.8rem;
-  color: #888;
+  font-size: 0.78rem;
+  color: var(--text3);
   margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
 }
 
 .macro-value {
-  font-size: 1.4rem;
+  font-size: 1.35rem;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--text);
 }
 
 .macro-change {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   margin-top: 2px;
 }
-
-.macro-change.up   { color: #ef5350; }
-.macro-change.down { color: #26a69a; }
+.macro-change.up   { color: var(--up); }
+.macro-change.down { color: var(--down); }
 
 /* ── 뉴스 요약 ── */
 .news-summary {
   font-size: 0.95rem;
-  color: #444;
-  background: #f8f9fa;
-  border-left: 4px solid #4285f4;
+  color: var(--text2);
+  background: var(--surface2);
+  border-left: 4px solid var(--accent);
   padding: 12px 16px;
   border-radius: 0 8px 8px 0;
+  line-height: 1.7;
 }
 
-/* ── 신호 없음 ── */
-.no-signals {
-  text-align: center;
-  color: #888;
-  padding: 20px 0;
+/* ── 뉴스 목록 ── */
+.news-list {
+  list-style: none;
+  margin-top: 12px;
 }
+
+.news-list li {
+  border-bottom: 1px solid var(--border);
+  padding: 7px 0;
+  font-size: 0.87rem;
+}
+.news-list li:last-child { border-bottom: none; }
+
+.news-source {
+  display: inline-block;
+  font-size: 0.72rem;
+  color: var(--text3);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 6px;
+}
+
+.news-list a { color: var(--text2); text-decoration: none; }
+.news-list a:hover { color: var(--accent); text-decoration: underline; }
 
 /* ── 신호 카드 ── */
 .signal-card {
-  border: 1px solid #e8eaed;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px 18px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+  background: var(--surface);
+  transition: box-shadow .2s, transform .2s;
+}
+.signal-card:hover {
+  box-shadow: var(--shadow-h);
+  transform: translateY(-2px);
 }
 
 .signal-header {
@@ -126,94 +208,83 @@ section h2 {
 }
 
 .ticker {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 700;
-  color: #1a1a2e;
-  font-family: monospace;
+  color: var(--text);
+  font-family: "SF Mono", "Fira Code", monospace;
 }
 
 .stock-name {
   font-size: 0.95rem;
-  color: #555;
+  color: var(--text2);
 }
 
 .close-price {
   margin-left: auto;
   font-size: 1.05rem;
-  font-weight: 600;
-  color: #ef5350;
+  font-weight: 700;
+  color: var(--up);
 }
 
 .rs-badge {
-  background: #1a73e8;
+  background: var(--accent);
   color: #fff;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 2px 8px;
+  font-size: 0.73rem;
+  font-weight: 700;
+  padding: 3px 9px;
   border-radius: 12px;
+  letter-spacing: .02em;
 }
 
 .signal-meta {
   font-size: 0.82rem;
-  color: #777;
+  color: var(--text3);
   margin-bottom: 8px;
-}
-
-.signal-meta span {
-  margin-right: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
 }
 
 .ai-comment {
-  font-size: 0.88rem;
-  color: #2e7d32;
-  background: #f1f8e9;
+  font-size: 0.87rem;
+  color: var(--ai-text);
+  background: var(--ai-bg);
   border-radius: 6px;
-  padding: 6px 10px;
+  padding: 7px 12px;
   margin-bottom: 10px;
 }
 
 .chart-container {
   margin-top: 10px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
   padding-top: 10px;
 }
 
-/* ── 뉴스 목록 ── */
-.news-list {
-  list-style: none;
-  margin-top: 8px;
+/* ── 신호 없음 ── */
+.no-signals {
+  text-align: center;
+  padding: 36px 0;
 }
-
-.news-list li {
-  border-bottom: 1px solid #f0f0f0;
-  padding: 7px 0;
+.no-signals-icon {
+  font-size: 2.8rem;
+  margin-bottom: 10px;
+}
+.no-signals-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 6px;
+}
+.no-signals-desc {
   font-size: 0.88rem;
+  color: var(--text3);
 }
-
-.news-list li:last-child { border-bottom: none; }
-
-.news-source {
-  display: inline-block;
-  font-size: 0.75rem;
-  color: #666;
-  background: #f0f0f0;
-  border-radius: 4px;
-  padding: 1px 6px;
-  margin-right: 6px;
-}
-
-.news-list a {
-  color: #333;
-  text-decoration: none;
-}
-
-.news-list a:hover { text-decoration: underline; }
 
 /* ── 푸터 ── */
 footer {
   text-align: center;
-  font-size: 0.78rem;
-  color: #aaa;
+  font-size: 0.75rem;
+  color: var(--text3);
   margin-top: 32px;
   padding-bottom: 24px;
 }
@@ -223,8 +294,11 @@ footer {
 <div class="container">
 
   <header>
-    <h1>📊 STEP2+RS 일별 스캔 리포트</h1>
-    <p class="scan-date">{{ scan_date }} 기준</p>
+    <div class="header-title">
+      <h1>오늘의 돌파 신호</h1>
+      <p class="scan-date">{{ scan_date }} 기준</p>
+    </div>
+    <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">🌙 다크모드</button>
   </header>
 
   <!-- 거시경제 -->
@@ -240,9 +314,39 @@ footer {
           {{ "%.2f" | format(macro.kospi_change_pct | abs) }}%
         </div>
       </div>
-      {% if macro.usdkrw == macro.usdkrw %}  {# NaN 체크 #}
+      {% if macro.kosdaq_close == macro.kosdaq_close %}
       <div class="macro-card">
-        <div class="macro-label">USD/KRW</div>
+        <div class="macro-label">KOSDAQ</div>
+        <div class="macro-value">{{ "%.2f" | format(macro.kosdaq_close) }}</div>
+        <div class="macro-change {% if macro.kosdaq_change_pct >= 0 %}up{% else %}down{% endif %}">
+          {% if macro.kosdaq_change_pct >= 0 %}▲{% else %}▼{% endif %}
+          {{ "%.2f" | format(macro.kosdaq_change_pct | abs) }}%
+        </div>
+      </div>
+      {% endif %}
+      {% if macro.sp500_close == macro.sp500_close %}
+      <div class="macro-card">
+        <div class="macro-label">S&amp;P 500</div>
+        <div class="macro-value">{{ "%.1f" | format(macro.sp500_close) }}</div>
+        <div class="macro-change {% if macro.sp500_change_pct >= 0 %}up{% else %}down{% endif %}">
+          {% if macro.sp500_change_pct >= 0 %}▲{% else %}▼{% endif %}
+          {{ "%.2f" | format(macro.sp500_change_pct | abs) }}%
+        </div>
+      </div>
+      {% endif %}
+      {% if macro.nasdaq_close == macro.nasdaq_close %}
+      <div class="macro-card">
+        <div class="macro-label">NASDAQ</div>
+        <div class="macro-value">{{ "%.1f" | format(macro.nasdaq_close) }}</div>
+        <div class="macro-change {% if macro.nasdaq_change_pct >= 0 %}up{% else %}down{% endif %}">
+          {% if macro.nasdaq_change_pct >= 0 %}▲{% else %}▼{% endif %}
+          {{ "%.2f" | format(macro.nasdaq_change_pct | abs) }}%
+        </div>
+      </div>
+      {% endif %}
+      {% if macro.usdkrw == macro.usdkrw %}
+      <div class="macro-card">
+        <div class="macro-label">USD / KRW</div>
         <div class="macro-value">{{ "%.1f" | format(macro.usdkrw) }}</div>
         <div class="macro-change {% if macro.usdkrw_change_pct >= 0 %}up{% else %}down{% endif %}">
           {% if macro.usdkrw_change_pct >= 0 %}▲{% else %}▼{% endif %}
@@ -256,11 +360,11 @@ footer {
 
   <!-- 뉴스 요약 (AI) -->
   <section>
-    <h2>시장 뉴스 요약 <small style="font-weight:400;color:#888;">(Gemini AI)</small></h2>
+    <h2>시장 뉴스 요약 <small style="font-weight:400;color:var(--text3);">(Gemini AI)</small></h2>
     <div class="news-summary">{{ news_summary or "뉴스 요약 데이터 없음" }}</div>
 
     {% if news_items %}
-    <ul class="news-list" style="margin-top:14px;">
+    <ul class="news-list">
       {% for item in news_items %}
       <li>
         <span class="news-source">{{ item.source }}</span>
@@ -273,7 +377,7 @@ footer {
 
   <!-- 신호 종목 -->
   <section>
-    <h2>STEP2+RS 신호 종목 <small style="font-weight:400;color:#888;">({{ signals | length }}개)</small></h2>
+    <h2>신호 종목 <small style="font-weight:400;color:var(--text3);">({{ signals | length }}개)</small></h2>
 
     {% if signals %}
     {% for s in signals %}
@@ -281,8 +385,8 @@ footer {
       <div class="signal-header">
         <span class="ticker">{{ s.ticker }}</span>
         <span class="stock-name">{{ name_map.get(s.ticker, "") }}</span>
+        <span class="rs-badge" title="KRX 전체 종목 중 60일 수익률 상위 {{ "%.0f" | format((1 - s.rs_percentile) * 100) }}%">상대강도 {{ "%.0f" | format(s.rs_percentile * 100) }}%</span>
         <span class="close-price">{{ "{:,.0f}원".format(s.close) }}</span>
-        <span class="rs-badge">RS {{ "%.0f" | format(s.rs_percentile * 100) }}%ile</span>
       </div>
       <div class="signal-meta">
         <span>52주고가 {{ "{:,.0f}".format(s.high_52w) }}</span>
@@ -298,8 +402,13 @@ footer {
       {% endif %}
     </div>
     {% endfor %}
+
     {% else %}
-    <p class="no-signals">오늘은 STEP2+RS 조건을 충족하는 신호가 없습니다.</p>
+    <div class="no-signals">
+      <div class="no-signals-icon">👀</div>
+      <div class="no-signals-title">오늘은 관망입니다</div>
+      <div class="no-signals-desc">STEP2+RS 조건을 충족하는 종목이 없습니다.<br>시장이 조건을 만들 때까지 기다립니다.</div>
+    </div>
     {% endif %}
   </section>
 
@@ -308,5 +417,21 @@ footer {
 <footer>
   Generated by trend_scanner · {{ scan_date }}
 </footer>
+
+<script>
+(function () {
+  const saved = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', saved);
+  document.getElementById('themeBtn').textContent = saved === 'dark' ? '☀️ 라이트모드' : '🌙 다크모드';
+})();
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  document.getElementById('themeBtn').textContent = next === 'dark' ? '☀️ 라이트모드' : '🌙 다크모드';
+}
+</script>
 </body>
 </html>
