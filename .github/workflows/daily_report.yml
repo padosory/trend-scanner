@@ -1,0 +1,87 @@
+name: Daily Trend Scan
+
+on:
+  schedule:
+    - cron: "30 21 * * 1-5"   # 21:30 UTC = 06:30 KST, 월~금
+  workflow_dispatch:            # 수동 실행 가능
+
+permissions:
+  contents: write               # reports/ 커밋+푸시
+  pages: write                  # GitHub Pages 배포
+  id-token: write               # OIDC 토큰 (Pages 배포 필수)
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  scan-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      # ── 소스 체크아웃 ────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Python 환경 ──────────────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      # ── OHLCV parquet 캐시 ────────────────────────────────────────────────
+      # 캐시 키에 run_id를 포함해 매 실행마다 새로 저장하고,
+      # restore-keys로 직전 실행 캐시를 그대로 가져온다.
+      - name: Cache OHLCV parquet
+        uses: actions/cache@v4
+        with:
+          path: backtest/cache/
+          key: ohlcv-${{ github.run_id }}
+          restore-keys: ohlcv-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── 스캔 실행 ────────────────────────────────────────────────────────
+      - name: Run daily scan
+        env:
+          GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
+          # GitHub Pages URL: username.github.io/repo-name
+          GITHUB_PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+        run: python run_daily_report.py
+
+      # ── reports/ 커밋 & 푸시 ─────────────────────────────────────────────
+      - name: Commit & push reports
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/
+          if git diff --cached --quiet; then
+            echo "변경 없음 (휴장일 or 중복 실행)"
+          else
+            git commit -m "chore: daily scan $(date -u +%Y-%m-%d)"
+            git push
+          fi
+
+      # ── GitHub Pages 배포 ─────────────────────────────────────────────────
+      # Settings → Pages → Source 를 "GitHub Actions"로 설정해야 한다.
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports/
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
