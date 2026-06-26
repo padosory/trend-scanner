@@ -6,7 +6,6 @@ on:
   workflow_dispatch:            # 수동 실행 가능
 
 permissions:
-  contents: write               # reports/ 커밋+푸시
   pages: write                  # GitHub Pages 배포
   id-token: write               # OIDC 토큰 (Pages 배포 필수)
 
@@ -61,19 +60,6 @@ jobs:
           # GitHub Pages URL: username.github.io/repo-name
           GITHUB_PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
         run: python run_daily_report.py
-
-      # ── reports/ 커밋 & 푸시 ─────────────────────────────────────────────
-      - name: Commit & push reports
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add reports/
-          if git diff --cached --quiet; then
-            echo "변경 없음 (휴장일 or 중복 실행)"
-          else
-            git commit -m "chore: daily scan $(date -u +%Y-%m-%d)"
-            git push
-          fi
 
       # ── GitHub Pages 배포 ─────────────────────────────────────────────────
       # Settings → Pages → Source 를 "GitHub Actions"로 설정해야 한다.
