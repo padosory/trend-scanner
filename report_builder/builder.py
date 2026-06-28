@@ -21,6 +21,7 @@ def build(
     name_map: dict[str, str],
     comments: dict[str, str],
     charts: dict[str, str],
+    dart_data: dict | None = None,
 ) -> Path:
     """HTML 리포트를 생성하고 저장 경로를 반환한다.
 
@@ -51,6 +52,7 @@ def build(
         name_map=name_map,
         comments=comments,
         charts=charts,
+        dart_data=dart_data or {},
     )
 
     date_str = scan_date.strftime("%Y%m%d")

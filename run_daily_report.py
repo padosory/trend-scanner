@@ -44,6 +44,21 @@ def main() -> None:
     from collectors.news import fetch as news_fetch
     news_items = news_fetch()
 
+    # ── 4-1. DART 공시 + 재무지표 ────────────────────────────────────────────
+    dart_api_key = os.environ.get("DART_API_KEY", "")
+    dart_data: dict[str, object] = {}
+    if not dart_api_key:
+        logger.info("DART_API_KEY 없음 — 공시/재무 스킵")
+    elif not signals:
+        logger.info("신호 종목 없음 — DART 조회 스킵")
+    else:
+        from collectors.dart import fetch as dart_fetch
+        for signal in signals:
+            result = dart_fetch(dart_api_key, signal.ticker, effective_date.strftime("%Y%m%d"))
+            if result:
+                dart_data[signal.ticker] = result
+        logger.info("DART 데이터 수집 완료: %d/%d 종목", len(dart_data), len(signals))
+
     # ── 5. AI 분석 ──────────────────────────────────────────────────────────
     news_summary = ""
     comments: dict[str, str] = {}
@@ -82,6 +97,7 @@ def main() -> None:
         name_map=name_map,
         comments=comments,
         charts=charts,
+        dart_data=dart_data,
     )
     logger.info("리포트 완료: %s", out_path)
 

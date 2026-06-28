@@ -57,6 +57,7 @@ jobs:
           GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
+          DART_API_KEY:        ${{ secrets.DART_API_KEY }}
           # GitHub Pages URL: username.github.io/repo-name
           GITHUB_PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
         run: python run_daily_report.py
