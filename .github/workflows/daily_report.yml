@@ -6,19 +6,11 @@ on:
   workflow_dispatch:            # 수동 실행 가능
 
 permissions:
-  pages: write                  # GitHub Pages 배포
-  id-token: write               # OIDC 토큰 (Pages 배포 필수)
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
+  contents: read                # 소스 체크아웃(private repo에서 필수)
 
 jobs:
-  scan-and-deploy:
+  scan:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
       # ── 소스 체크아웃 ────────────────────────────────────────────────────
@@ -58,17 +50,16 @@ jobs:
           TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
           DART_API_KEY:        ${{ secrets.DART_API_KEY }}
-          # GitHub Pages URL: username.github.io/repo-name
-          GITHUB_PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
         run: python run_daily_report.py
 
-      # ── GitHub Pages 배포 ─────────────────────────────────────────────────
-      # Settings → Pages → Source 를 "GitHub Actions"로 설정해야 한다.
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      # ── 리포트를 아티팩트로 업로드 (로컬 다운로드용) ──────────────────────
+      # private repo라 GitHub Pages 발행은 안 함(무료 플랜 제약).
+      # 실행 페이지 하단 Artifacts에서 reports/ 를 zip으로 받아 로컬에서 연다.
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
+          name: daily-report
           path: reports/
-
-      - name: Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@v4
+          retention-days: 30
+          if-no-files-found: warn
