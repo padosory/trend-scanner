@@ -91,6 +91,8 @@ class SignalBacktestEngine:
                 continue  # 신호 다음 거래일부터 체결
             row = df.loc[date]
             price = self._fill_price(row)
+            if not price or pd.isna(price):
+                continue  # 시가 0 = 거래정지 — 다음 거래일 재시도
             self.trades.append(Trade(ticker, entry_date, entry_price, date, price, reason))
             del self._pending_exits[ticker]
             self.positions.pop(ticker, None)
@@ -105,6 +107,8 @@ class SignalBacktestEngine:
                 continue
             row = df.loc[date]
             price = self._fill_price(row)
+            if not price or pd.isna(price):
+                continue  # 시가 0 = 거래정지 — 다음 거래일 재시도
             self.positions[ticker] = (date, price)
             del self._pending_entries[ticker]
 
