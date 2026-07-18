@@ -49,7 +49,7 @@ def notify_report(
     if len(top_tickers) > 5:
         ticker_str += f" 외 {len(top_tickers) - 5}개"
 
-    lines = [f"<b>📊 STEP2+RS 일별 스캔 — {scan_date}</b>"]
+    lines = [f"<b>📊 마켓 대시보드 — {scan_date}</b>"]
 
     if signal_count == 0:
         lines.append("오늘은 신호 종목이 없습니다.")
@@ -60,7 +60,7 @@ def notify_report(
 
     if news_summary:
         short = news_summary[:200] + ("…" if len(news_summary) > 200 else "")
-        lines.append(f"\n📰 {short}")
+        lines.append(f"\n📰 국내 시황: {short}")
 
     lines.append(f"\n🔗 <a href='{report_url}'>리포트 전체 보기</a>")
 
