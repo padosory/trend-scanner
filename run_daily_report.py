@@ -40,6 +40,16 @@ def main() -> None:
     from collectors.macro import fetch as macro_fetch
     macro = macro_fetch(effective_date.strftime("%Y%m%d"))
 
+    # BTC 도미넌스 등락은 전일 스냅샷과 비교해 계산 (무료 API가 현재값만 제공)
+    if macro is not None and macro.btc_dominance == macro.btc_dominance:
+        import macro_state
+        prev = macro_state.load()
+        today_str = macro.date.strftime("%Y-%m-%d")
+        prev_dom = prev.get("btc_dominance")
+        if prev_dom and prev.get("date") != today_str:
+            macro.btc_dominance_change_pct = (macro.btc_dominance / prev_dom - 1) * 100
+        macro_state.save({"date": today_str, "btc_dominance": macro.btc_dominance})
+
     # ── 4. 뉴스 수집 (국내: 네이버 API, 글로벌: Finnhub API) ──────────────────
     from collectors.news import fetch_global, fetch_korea
     kr_news_items = fetch_korea()
@@ -90,6 +100,23 @@ def main() -> None:
         except Exception as exc:  # noqa: BLE001
             logger.debug("차트 생성 실패 %s: %s", signal.ticker, exc)
 
+    # ── 6-1. 신호 히스토리 기록 + 성과 추적 ──────────────────────────────────
+    import signal_tracker
+    signal_tracker.record(signals, effective_date, name_map)
+
+    _price_cache: dict[str, float | None] = {}
+
+    def _price_lookup(ticker: str) -> "float | None":
+        if ticker not in _price_cache:
+            try:
+                df = fetch_ohlcv(ticker, chart_start, chart_end)
+                _price_cache[ticker] = float(df["Close"].iloc[-1])
+            except Exception:  # noqa: BLE001
+                _price_cache[ticker] = None
+        return _price_cache[ticker]
+
+    perf_rows = signal_tracker.evaluate(effective_date, _price_lookup, lookback_days=30)
+
     # ── 7. 리포트 빌드 ────────────────────────────────────────────────────────
     from report_builder.builder import build as build_report
     out_path = build_report(
@@ -104,6 +131,7 @@ def main() -> None:
         comments=comments,
         charts=charts,
         dart_data=dart_data,
+        perf_rows=perf_rows,
     )
     logger.info("리포트 완료: %s", out_path)
 

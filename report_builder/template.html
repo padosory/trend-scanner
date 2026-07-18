@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>트렌드 스캔 — {{ scan_date }}</title>
+<title>마켓 대시보드 — {{ scan_date }}</title>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 <style>
 :root {
@@ -147,6 +147,20 @@ section h2 {
 .macro-change.up   { color: var(--up); }
 .macro-change.down { color: var(--down); }
 
+/* ── 카드 클릭 스파크라인 ── */
+.spark-card { cursor: pointer; }
+.card-spark { display: none; margin-top: 8px; }
+.macro-card.open .card-spark { display: block; }
+.spark-svg { width: 100%; height: 30px; display: block; }
+.spark-svg polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.spark-up   polyline { stroke: var(--up); }
+.spark-down polyline { stroke: var(--down); }
+
 /* ── 뉴스 요약 ── */
 .news-summary {
   font-size: 0.95rem;
@@ -157,6 +171,40 @@ section h2 {
   border-radius: 0 8px 8px 0;
   line-height: 1.7;
 }
+
+/* ── 설명 아이콘(ⓘ) + 팝오버 ── */
+.info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface2);
+  color: var(--text3);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  vertical-align: middle;
+  line-height: 1;
+}
+.info-btn:hover { color: var(--accent); }
+.info-pop {
+  display: none;
+  margin: 10px 0 4px;
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--text2);
+  background: var(--surface2);
+  border-left: 4px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  line-height: 1.7;
+}
+.info-pop.open { display: block; }
 
 /* ── 뉴스 목록 ── */
 .news-list {
@@ -372,6 +420,29 @@ section h2 {
   color: var(--text3);
 }
 
+/* ── 성과 추적 표 ── */
+.perf-wrap { overflow-x: auto; }
+.perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.perf-table th, .perf-table td {
+  padding: 8px 10px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.perf-table th:nth-child(2), .perf-table td.perf-name { text-align: left; }
+.perf-table th {
+  color: var(--text3);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.perf-table td.up   { color: var(--up);   font-weight: 600; }
+.perf-table td.down { color: var(--down); font-weight: 600; }
+.perf-ticker { color: var(--text3); font-size: 0.78rem; }
+
 /* ── 푸터 ── */
 footer {
   text-align: center;
@@ -384,10 +455,20 @@ footer {
 </head>
 <body>
 <div class="container">
+{% macro spark(series) -%}
+{%- if series and series|length >= 2 -%}
+{%- set lo = series|min -%}{%- set hi = series|max -%}
+{%- set rng = (hi - lo) if (hi - lo) > 0 else 1 -%}
+{%- set n = series|length -%}
+{%- set up = series[-1] >= series[0] -%}
+<svg class="spark-svg {{ 'spark-up' if up else 'spark-down' }}" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="{% for v in series %}{{ '%.2f'|format(loop.index0/(n-1)*100) }},{{ '%.2f'|format(28-(v-lo)/rng*26) }} {% endfor %}"/></svg>
+{%- endif -%}
+{%- endmacro %}
 
   <header>
     <div class="header-title">
-      <h1>오늘의 돌파 신호</h1>
+      <h1>📊 마켓 대시보드</h1>
+      <p style="font-size:0.9rem;color:var(--text3);margin-top:2px;">시장 현황 · 뉴스 · 매매 신호</p>
       <p class="scan-date">{{ scan_date }} 기준</p>
     </div>
     <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">🌙 다크모드</button>
@@ -396,54 +477,145 @@ footer {
   <!-- 거시경제 -->
   {% if macro %}
   <section>
-    <h2>시장 현황</h2>
+    <h2>시장 현황<button class="info-btn" type="button" onclick="toggleInfo(this)" aria-label="지표 설명 보기">ⓘ</button></h2>
+    <div class="info-pop">
+      <strong>지수 · 심리 지표 읽는 법</strong><br>
+      <b>금 · 미 국채 10Y</b>: 대표 안전자산·금리. 위험회피 심리가 커지면 금↑, 금리는 경기·인플레 기대를 반영하며 <b>금리 급등은 주식에 부담</b>입니다.<br>
+      <b>국고채 3Y</b>: 한국 채권시장 벤치마크 금리(국내 정책금리·유동성 바로미터). 미국채 10Y가 글로벌 기준이라면 국고채 3Y는 국내 기준입니다.<br>
+      <b>비트코인</b>: 글로벌 위험자산 심리의 참고 가격.<br>
+      <b>VIX</b>: 미국 <b>주식</b>시장 변동성(공포) 지수. <b>20 위</b>면 불안, 아래면 안정.<br>
+      <b>공포·탐욕(크립토)</b>: 비트코인 시장 심리. 0(극단적 공포)~100(극단적 탐욕).<br>
+      <b>BTC 도미넌스</b>: 전체 코인 시총 중 비트코인 비중. <b>상승</b>=크립토 내 위험회피(알트→BTC), <b>하락</b>=위험선호(알트시즌). 절대 기준선은 없는 방향 참고 지표입니다.<br>
+      <span style="color:var(--text3);">※ 공포·탐욕과 도미넌스는 <b>글로벌 크립토</b> 심리로, 국내·미국 주식이 아니며 국내 증시와 직접 연동되지는 않습니다.</span><br>
+      <span style="color:var(--text3);">💡 카드를 누르면 최근 추이(스파크라인)를 볼 수 있습니다.</span>
+    </div>
     <div class="macro-grid">
-      <div class="macro-card">
+      <div class="macro-card spark-card" onclick="toggleSpark(this)">
         <div class="macro-label">KOSPI</div>
         <div class="macro-value">{{ "%.2f" | format(macro.kospi_close) }}</div>
         <div class="macro-change {% if macro.kospi_change_pct >= 0 %}up{% else %}down{% endif %}">
           {% if macro.kospi_change_pct >= 0 %}▲{% else %}▼{% endif %}
           {{ "%.2f" | format(macro.kospi_change_pct | abs) }}%
         </div>
+        {% if macro.sparklines.get('kospi') %}<div class="card-spark">{{ spark(macro.sparklines['kospi']) }}</div>{% endif %}
       </div>
       {% if macro.kosdaq_close == macro.kosdaq_close %}
-      <div class="macro-card">
+      <div class="macro-card spark-card" onclick="toggleSpark(this)">
         <div class="macro-label">KOSDAQ</div>
         <div class="macro-value">{{ "%.2f" | format(macro.kosdaq_close) }}</div>
         <div class="macro-change {% if macro.kosdaq_change_pct >= 0 %}up{% else %}down{% endif %}">
           {% if macro.kosdaq_change_pct >= 0 %}▲{% else %}▼{% endif %}
           {{ "%.2f" | format(macro.kosdaq_change_pct | abs) }}%
         </div>
+        {% if macro.sparklines.get('kosdaq') %}<div class="card-spark">{{ spark(macro.sparklines['kosdaq']) }}</div>{% endif %}
       </div>
       {% endif %}
       {% if macro.sp500_close == macro.sp500_close %}
-      <div class="macro-card">
+      <div class="macro-card spark-card" onclick="toggleSpark(this)">
         <div class="macro-label">S&amp;P 500</div>
         <div class="macro-value">{{ "%.1f" | format(macro.sp500_close) }}</div>
         <div class="macro-change {% if macro.sp500_change_pct >= 0 %}up{% else %}down{% endif %}">
           {% if macro.sp500_change_pct >= 0 %}▲{% else %}▼{% endif %}
           {{ "%.2f" | format(macro.sp500_change_pct | abs) }}%
         </div>
+        {% if macro.sparklines.get('sp500') %}<div class="card-spark">{{ spark(macro.sparklines['sp500']) }}</div>{% endif %}
       </div>
       {% endif %}
       {% if macro.nasdaq_close == macro.nasdaq_close %}
-      <div class="macro-card">
+      <div class="macro-card spark-card" onclick="toggleSpark(this)">
         <div class="macro-label">NASDAQ</div>
         <div class="macro-value">{{ "%.1f" | format(macro.nasdaq_close) }}</div>
         <div class="macro-change {% if macro.nasdaq_change_pct >= 0 %}up{% else %}down{% endif %}">
           {% if macro.nasdaq_change_pct >= 0 %}▲{% else %}▼{% endif %}
           {{ "%.2f" | format(macro.nasdaq_change_pct | abs) }}%
         </div>
+        {% if macro.sparklines.get('nasdaq') %}<div class="card-spark">{{ spark(macro.sparklines['nasdaq']) }}</div>{% endif %}
       </div>
       {% endif %}
       {% if macro.usdkrw == macro.usdkrw %}
-      <div class="macro-card">
+      <div class="macro-card spark-card" onclick="toggleSpark(this)">
         <div class="macro-label">USD / KRW</div>
         <div class="macro-value">{{ "%.1f" | format(macro.usdkrw) }}</div>
         <div class="macro-change {% if macro.usdkrw_change_pct >= 0 %}up{% else %}down{% endif %}">
           {% if macro.usdkrw_change_pct >= 0 %}▲{% else %}▼{% endif %}
           {{ "%.2f" | format(macro.usdkrw_change_pct | abs) }}%
         </div>
+        {% if macro.sparklines.get('usdkrw') %}<div class="card-spark">{{ spark(macro.sparklines['usdkrw']) }}</div>{% endif %}
+      </div>
+      {% endif %}
+      {% if macro.gold == macro.gold %}
+      <div class="macro-card spark-card" onclick="toggleSpark(this)">
+        <div class="macro-label">금 (oz)</div>
+        <div class="macro-value">${{ "{:,.0f}".format(macro.gold) }}</div>
+        <div class="macro-change {% if macro.gold_change_pct >= 0 %}up{% else %}down{% endif %}">
+          {% if macro.gold_change_pct >= 0 %}▲{% else %}▼{% endif %}
+          {{ "%.2f" | format(macro.gold_change_pct | abs) }}%
+        </div>
+        {% if macro.sparklines.get('gold') %}<div class="card-spark">{{ spark(macro.sparklines['gold']) }}</div>{% endif %}
+      </div>
+      {% endif %}
+      {% if macro.us10y == macro.us10y %}
+      <div class="macro-card spark-card" onclick="toggleSpark(this)">
+        <div class="macro-label">미 국채 10Y</div>
+        <div class="macro-value">{{ "%.2f" | format(macro.us10y) }}%</div>
+        <div class="macro-change {% if macro.us10y_change_pct >= 0 %}up{% else %}down{% endif %}">
+          {% if macro.us10y_change_pct >= 0 %}▲{% else %}▼{% endif %}
+          {{ "%.2f" | format(macro.us10y_change_pct | abs) }}%
+        </div>
+        {% if macro.sparklines.get('us10y') %}<div class="card-spark">{{ spark(macro.sparklines['us10y']) }}</div>{% endif %}
+      </div>
+      {% endif %}
+      {% if macro.kr3y == macro.kr3y %}
+      <div class="macro-card spark-card" onclick="toggleSpark(this)">
+        <div class="macro-label">국고채 3Y</div>
+        <div class="macro-value">{{ "%.2f" | format(macro.kr3y) }}%</div>
+        <div class="macro-change {% if macro.kr3y_change_pct >= 0 %}up{% else %}down{% endif %}">
+          {% if macro.kr3y_change_pct >= 0 %}▲{% else %}▼{% endif %}
+          {{ "%.2f" | format(macro.kr3y_change_pct | abs) }}%
+        </div>
+        {% if macro.sparklines.get('kr3y') %}<div class="card-spark">{{ spark(macro.sparklines['kr3y']) }}</div>{% endif %}
+      </div>
+      {% endif %}
+      {% if macro.vix == macro.vix %}
+      <div class="macro-card spark-card" onclick="toggleSpark(this)">
+        <div class="macro-label">VIX</div>
+        <div class="macro-value">{{ "%.1f" | format(macro.vix) }}</div>
+        <div class="macro-change" style="color:{% if macro.vix >= 20 %}var(--down){% else %}var(--up){% endif %};">
+          {% if macro.vix >= 20 %}불안{% else %}안정{% endif %}
+        </div>
+        {% if macro.sparklines.get('vix') %}<div class="card-spark">{{ spark(macro.sparklines['vix']) }}</div>{% endif %}
+      </div>
+      {% endif %}
+      {% if macro.fng_value is not none %}
+      <div class="macro-card">
+        <div class="macro-label">공포·탐욕 (크립토)</div>
+        <div class="macro-value">{{ macro.fng_value }}</div>
+        <div class="macro-change" style="color:var(--text3);">{{ macro.fng_class }}</div>
+      </div>
+      {% endif %}
+      {% if macro.btc_usd == macro.btc_usd %}
+      <div class="macro-card spark-card" onclick="toggleSpark(this)">
+        <div class="macro-label">비트코인</div>
+        <div class="macro-value">${{ "{:,.0f}".format(macro.btc_usd) }}</div>
+        <div class="macro-change {% if macro.btc_change_pct >= 0 %}up{% else %}down{% endif %}">
+          {% if macro.btc_change_pct >= 0 %}▲{% else %}▼{% endif %}
+          {{ "%.2f" | format(macro.btc_change_pct | abs) }}%
+        </div>
+        {% if macro.sparklines.get('btc') %}<div class="card-spark">{{ spark(macro.sparklines['btc']) }}</div>{% endif %}
+      </div>
+      {% endif %}
+      {% if macro.btc_dominance == macro.btc_dominance %}
+      <div class="macro-card">
+        <div class="macro-label">BTC 도미넌스</div>
+        <div class="macro-value">{{ "%.1f" | format(macro.btc_dominance) }}%</div>
+        {% if macro.btc_dominance_change_pct == macro.btc_dominance_change_pct %}
+        <div class="macro-change {% if macro.btc_dominance_change_pct >= 0 %}up{% else %}down{% endif %}">
+          {% if macro.btc_dominance_change_pct >= 0 %}▲{% else %}▼{% endif %}
+          {{ "%.2f" | format(macro.btc_dominance_change_pct | abs) }}%
+        </div>
+        {% else %}
+        <div class="macro-change" style="color:var(--text3);">—</div>
+        {% endif %}
       </div>
       {% endif %}
     </div>
@@ -486,7 +658,14 @@ footer {
 
   <!-- 신호 종목 -->
   <section>
-    <h2>신호 종목 <small style="font-weight:400;color:var(--text3);">({{ signals | length }}개)</small></h2>
+    <h2>신호 종목 <small style="font-weight:400;color:var(--text3);">돌파 스캔 · {{ signals | length }}개</small><button class="info-btn" type="button" onclick="toggleInfo(this)" aria-label="신호 설명 보기">ⓘ</button></h2>
+    <div class="info-pop">
+      <strong>돌파 스캔이란?</strong><br>
+      상승 추세에 있는 종목 중, <b>52주 신고가 부근에서 대량 거래를 동반해 저항선을 돌파</b>하고(돌파 스캔·오닐 방식),
+      최근 60일 수익률이 전체 종목 <b>상위 20%</b>에 드는(상대강도) 종목입니다.
+      즉 "이미 강한 종목이 추가로 힘을 낼 때"를 포착합니다.<br>
+      <span style="color:var(--text3);">※ 눌림목 등 다른 전략 신호는 향후 추가될 예정입니다.</span>
+    </div>
 
     {% if signals %}
     {% for s in signals %}
@@ -586,10 +765,43 @@ footer {
     <div class="no-signals">
       <div class="no-signals-icon">👀</div>
       <div class="no-signals-title">오늘은 관망입니다</div>
-      <div class="no-signals-desc">STEP2+RS 조건을 충족하는 종목이 없습니다.<br>시장이 조건을 만들 때까지 기다립니다.</div>
+      <div class="no-signals-desc">돌파 스캔 조건을 충족하는 종목이 없습니다.<br>시장이 조건을 만들 때까지 기다립니다.</div>
     </div>
     {% endif %}
   </section>
+
+  <!-- 성과 추적 -->
+  {% if perf_rows %}
+  <section>
+    <h2>성과 추적 <small style="font-weight:400;color:var(--text3);">최근 30일 신호 · {{ perf_rows | length }}건</small><button class="info-btn" type="button" onclick="toggleInfo(this)" aria-label="성과 추적 설명 보기">ⓘ</button></h2>
+    <div class="info-pop">
+      <strong>성과 추적이란?</strong><br>
+      과거에 잡힌 신호 종목이 <b>신호일 종가 대비 현재 어떤 성과</b>를 내고 있는지 추적합니다.
+      수익률이 <b>-8%(손절선)</b> 이하로 내려가면 '손절이탈'로 표시됩니다.<br>
+      <span style="color:var(--text3);">※ 신호일 종가를 진입가로 가정한 참고 지표이며, 실제 매매 성과와는 다를 수 있습니다.</span>
+    </div>
+    <div class="perf-wrap">
+      <table class="perf-table">
+        <thead>
+          <tr><th>신호일</th><th>종목</th><th>진입가</th><th>현재가</th><th>수익률</th><th>경과</th><th>상태</th></tr>
+        </thead>
+        <tbody>
+          {% for r in perf_rows %}
+          <tr>
+            <td>{{ r.date }}</td>
+            <td class="perf-name">{{ r.name }}<br><span class="perf-ticker">{{ r.ticker }}</span></td>
+            <td>{{ "{:,.0f}".format(r.entry) }}</td>
+            <td>{{ "{:,.0f}".format(r.current) }}</td>
+            <td class="{% if r.return_pct >= 0 %}up{% else %}down{% endif %}">{{ "%+.1f" | format(r.return_pct) }}%</td>
+            <td>{{ r.days_held }}일</td>
+            <td>{% if r.status == '손절이탈' %}⚠️ {% endif %}{{ r.status }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
 
 </div>
 
@@ -610,6 +822,17 @@ function toggleTheme() {
   html.setAttribute('data-theme', next);
   localStorage.setItem('theme', next);
   document.getElementById('themeBtn').textContent = next === 'dark' ? '☀️ 라이트모드' : '🌙 다크모드';
+}
+
+function toggleInfo(btn) {
+  const pop = btn.closest('h2').nextElementSibling;
+  if (pop && pop.classList.contains('info-pop')) {
+    pop.classList.toggle('open');
+  }
+}
+
+function toggleSpark(card) {
+  card.classList.toggle('open');
 }
 </script>
 </body>
