@@ -32,20 +32,28 @@ def _get_client():
 
 
 def analyze(
-    news_items,
+    kr_news_items,
+    global_news_items,
     signals,
     name_map: dict[str, str],
-) -> tuple[str, dict[str, str]]:
-    """뉴스 요약 + 종목 코멘트를 단일 Gemini 호출로 반환.
+) -> tuple[str, str, dict[str, str]]:
+    """국내/글로벌 뉴스 요약 + 종목 코멘트를 단일 Gemini 호출로 반환.
+
+    글로벌 뉴스는 영문 헤드라인을 그대로 넣고 한국어로 요약하도록 지시한다
+    (별도 번역 API 불필요).
 
     Returns:
-        (news_summary, {ticker: comment})
+        (kr_summary, global_summary, {ticker: comment})
     """
     from google.genai import types
 
-    news_section = (
-        "\n".join(f"- [{i.source}] {i.title}" for i in news_items)
-        if news_items else "(수집된 뉴스 없음)"
+    kr_section = (
+        "\n".join(f"- [{i.source}] {i.title}" for i in kr_news_items)
+        if kr_news_items else "(수집된 뉴스 없음)"
+    )
+    global_section = (
+        "\n".join(f"- [{i.source}] {i.title}" for i in global_news_items)
+        if global_news_items else "(수집된 뉴스 없음)"
     )
     signal_lines = [
         f"- {s.ticker}({name_map.get(s.ticker, s.ticker)}): "
@@ -55,13 +63,16 @@ def analyze(
     signal_section = "\n".join(signal_lines) if signal_lines else "(신호 없음)"
 
     full_prompt = (
-        f"[뉴스 헤드라인]\n{news_section}\n\n"
+        f"[국내 뉴스 헤드라인]\n{kr_section}\n\n"
+        f"[글로벌 뉴스 헤드라인 (영문)]\n{global_section}\n\n"
         f"[STEP2+RS 신호 종목]\n{signal_section}\n\n"
         "[규칙]\n"
-        "- news_summary: 뉴스 기반 시장 분위기 2~3문장\n"
+        "- kr_summary: 국내 뉴스 기반 시장 분위기 2~3문장 (한국어)\n"
+        "- global_summary: 글로벌 뉴스를 한국어로 번역·요약한 시장 분위기 2~3문장\n"
         "- comments: 각 신호 종목의 30자 이내 투자 포인트 (신호 없으면 빈 배열)\n\n"
         "반드시 아래 JSON 형식만 출력하세요 (다른 텍스트 없이):\n"
-        '{"news_summary": "...", "comments": [{"code": "종목코드", "comment": "..."}]}'
+        '{"kr_summary": "...", "global_summary": "...", '
+        '"comments": [{"code": "종목코드", "comment": "..."}]}'
     )
 
     try:
@@ -71,7 +82,7 @@ def analyze(
             config=types.GenerateContentConfig(
                 system_instruction=_SYSTEM,
                 thinking_config=types.ThinkingConfig(**_THINKING_CONFIG),
-                max_output_tokens=500,
+                max_output_tokens=800,
                 # AFC가 내부적으로 client를 닫는 버그 회피 — 명시적으로 비활성화
                 automatic_function_calling=types.AutomaticFunctionCallingConfig(
                     disable=True
@@ -82,15 +93,16 @@ def analyze(
         if raw.startswith("```"):
             raw = raw.split("```")[1].lstrip("json").strip()
         data = json.loads(raw)
-        news_summary = data.get("news_summary", "")
+        kr_summary = data.get("kr_summary", "")
+        global_summary = data.get("global_summary", "")
         comments = {
             item["code"]: item["comment"]
             for item in data.get("comments", [])
             if "code" in item and "comment" in item
         }
         logger.info("Gemini 분석 완료 (신호 %d개 코멘트)", len(comments))
-        return news_summary, comments
+        return kr_summary, global_summary, comments
 
     except Exception as exc:
         logger.warning("Gemini 분석 실패: %s", exc)
-        return "AI 요약 생성 실패", {}
+        return "AI 요약 생성 실패", "AI 요약 생성 실패", {}

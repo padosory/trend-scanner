@@ -16,8 +16,10 @@ def build(
     scan_date: pd.Timestamp,
     signals: list,
     macro,
-    news_summary: str,
-    news_items: list,
+    kr_summary: str,
+    global_summary: str,
+    kr_news_items: list,
+    global_news_items: list,
     name_map: dict[str, str],
     comments: dict[str, str],
     charts: dict[str, str],
@@ -29,8 +31,10 @@ def build(
         scan_date: 스캔 기준 거래일
         signals: list[StockSignal]
         macro: MacroData | None
-        news_summary: Gemini AI 요약 문자열
-        news_items: list[NewsItem]
+        kr_summary: 국내 시황 Gemini AI 요약 문자열
+        global_summary: 글로벌 시황 Gemini AI 요약 문자열
+        kr_news_items: list[NewsItem] (국내)
+        global_news_items: list[NewsItem] (글로벌)
         name_map: {ticker: 종목명}
         comments: {ticker: AI 코멘트}
         charts: {ticker: plotly div HTML}
@@ -47,8 +51,10 @@ def build(
         scan_date=scan_date.strftime("%Y-%m-%d"),
         signals=signals,
         macro=macro,
-        news_summary=news_summary,
-        news_items=news_items,
+        kr_summary=kr_summary,
+        global_summary=global_summary,
+        kr_news_items=kr_news_items,
+        global_news_items=global_news_items,
         name_map=name_map,
         comments=comments,
         charts=charts,

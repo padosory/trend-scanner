@@ -59,6 +59,9 @@ jobs:
           TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
           DART_API_KEY:        ${{ secrets.DART_API_KEY }}
+          NAVER_CLIENT_ID:     ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          FINNHUB_API_KEY:     ${{ secrets.FINNHUB_API_KEY }}
           # GitHub Pages URL: username.github.io/repo-name (Telegram 리포트 링크로 사용)
           GITHUB_PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
         run: python run_daily_report.py

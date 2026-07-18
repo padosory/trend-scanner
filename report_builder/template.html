@@ -450,14 +450,31 @@ footer {
   </section>
   {% endif %}
 
-  <!-- 뉴스 요약 (AI) -->
+  <!-- 국내 시황 (AI) -->
   <section>
-    <h2>시장 뉴스 요약 <small style="font-weight:400;color:var(--text3);">(Gemini AI)</small></h2>
-    <div class="news-summary">{{ news_summary or "뉴스 요약 데이터 없음" }}</div>
+    <h2>국내 시황 <small style="font-weight:400;color:var(--text3);">(Gemini AI)</small></h2>
+    <div class="news-summary">{{ kr_summary or "뉴스 요약 데이터 없음" }}</div>
 
-    {% if news_items %}
+    {% if kr_news_items %}
     <ul class="news-list">
-      {% for item in news_items %}
+      {% for item in kr_news_items %}
+      <li>
+        <span class="news-source">{{ item.source }}</span>
+        <a href="{{ item.link }}" target="_blank" rel="noopener">{{ item.title }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <!-- 글로벌 시황 (AI) -->
+  <section>
+    <h2>글로벌 시황 <small style="font-weight:400;color:var(--text3);">(Gemini AI · 번역 요약)</small></h2>
+    <div class="news-summary">{{ global_summary or "뉴스 요약 데이터 없음" }}</div>
+
+    {% if global_news_items %}
+    <ul class="news-list">
+      {% for item in global_news_items %}
       <li>
         <span class="news-source">{{ item.source }}</span>
         <a href="{{ item.link }}" target="_blank" rel="noopener">{{ item.title }}</a>

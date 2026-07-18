@@ -40,9 +40,10 @@ def main() -> None:
     from collectors.macro import fetch as macro_fetch
     macro = macro_fetch(effective_date.strftime("%Y%m%d"))
 
-    # ── 4. 뉴스 수집 ────────────────────────────────────────────────────────
-    from collectors.news import fetch as news_fetch
-    news_items = news_fetch()
+    # ── 4. 뉴스 수집 (국내: 네이버 API, 글로벌: Finnhub API) ──────────────────
+    from collectors.news import fetch_global, fetch_korea
+    kr_news_items = fetch_korea()
+    global_news_items = fetch_global()
 
     # ── 4-1. DART 공시 + 재무지표 ────────────────────────────────────────────
     dart_api_key = os.environ.get("DART_API_KEY", "")
@@ -60,12 +61,15 @@ def main() -> None:
         logger.info("DART 데이터 수집 완료: %d/%d 종목", len(dart_data), len(signals))
 
     # ── 5. AI 분석 ──────────────────────────────────────────────────────────
-    news_summary = ""
+    kr_summary = ""
+    global_summary = ""
     comments: dict[str, str] = {}
     if not args.skip_ai:
         try:
             from ai_analyzer.summarizer import analyze
-            news_summary, comments = analyze(news_items, signals, name_map)
+            kr_summary, global_summary, comments = analyze(
+                kr_news_items, global_news_items, signals, name_map
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning("AI 분석 실패 (건너뜀): %s", exc)
 
@@ -92,8 +96,10 @@ def main() -> None:
         scan_date=effective_date,
         signals=signals,
         macro=macro,
-        news_summary=news_summary,
-        news_items=news_items,
+        kr_summary=kr_summary,
+        global_summary=global_summary,
+        kr_news_items=kr_news_items,
+        global_news_items=global_news_items,
         name_map=name_map,
         comments=comments,
         charts=charts,
@@ -114,7 +120,7 @@ def main() -> None:
             scan_date=effective_date.strftime("%Y-%m-%d"),
             signal_count=len(signals),
             report_url=report_url,
-            news_summary=news_summary,
+            news_summary=kr_summary,
             top_tickers=[s.ticker for s in signals],
         )
 

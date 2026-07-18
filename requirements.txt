@@ -3,7 +3,6 @@ finance-datareader
 pandas
 pyarrow
 # Phase 1 추가
-feedparser
 google-genai
 plotly
 jinja2
