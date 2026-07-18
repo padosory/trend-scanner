@@ -6,7 +6,7 @@ on:
   workflow_dispatch:            # 수동 실행 가능
 
 permissions:
-  contents: read                # 소스 체크아웃
+  contents: write               # 소스 체크아웃 + 신호 히스토리 커밋
   pages: write                  # GitHub Pages 배포
   id-token: write               # OIDC 토큰 (Pages 배포 필수)
 
@@ -62,9 +62,26 @@ jobs:
           NAVER_CLIENT_ID:     ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           FINNHUB_API_KEY:     ${{ secrets.FINNHUB_API_KEY }}
+          ECOS_API_KEY:        ${{ secrets.ECOS_API_KEY }}
           # GitHub Pages URL: username.github.io/repo-name (Telegram 리포트 링크로 사용)
           GITHUB_PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
         run: python run_daily_report.py
+
+      # ── 신호 히스토리 지속(repo 커밋) ────────────────────────────────────
+      # 매 러너는 상태가 없으므로, 갱신된 히스토리 JSON을 repo에 커밋해 다음
+      # 실행이 이어받게 한다. [skip ci]로 배포 워크플로 재트리거를 방지.
+      - name: Persist signal history
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain data/)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/
+            git commit -m "data: 신호 히스토리·시장 상태 업데이트 [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          else
+            echo "데이터 변경 없음 — 커밋 스킵"
+          fi
 
       # ── 리포트 다운로드용 아티팩트 (오프라인 백업) ────────────────────────
       - name: Upload report artifact
