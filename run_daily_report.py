@@ -83,30 +83,16 @@ def main() -> None:
         except Exception as exc:  # noqa: BLE001
             logger.warning("AI 분석 실패 (건너뜀): %s", exc)
 
-    # ── 6. 차트 생성 ─────────────────────────────────────────────────────────
+    # ── 6. 신호 히스토리 기록 + 성과 추적 ──────────────────────────────────
+    import signal_tracker
     from backtest.data_cache import fetch_ohlcv
-    from report_builder.charts import make_chart_div
     from scanners.indicators import add_indicators
 
-    charts: dict[str, str] = {}
-    chart_start = (effective_date - pd.DateOffset(days=180)).strftime("%Y%m%d")
-    chart_end = effective_date.strftime("%Y%m%d")
-    for signal in signals:
-        try:
-            df = fetch_ohlcv(signal.ticker, chart_start, chart_end)
-            df = add_indicators(df)
-            charts[signal.ticker] = make_chart_div(signal.ticker, df, effective_date,
-                                                   high_52w=signal.high_52w)
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("차트 생성 실패 %s: %s", signal.ticker, exc)
-
-    # ── 6-1. 신호 히스토리 기록 + 성과 추적 ──────────────────────────────────
-    import signal_tracker
     signal_tracker.record(signals, effective_date, name_map)
 
-    # 추적기는 저항선 재이탈(채택 전략 청산)을 판정하려면 resistance_60까지 필요하므로
-    # 종가만이 아니라 지표가 적용된 OHLCV DataFrame을 넘긴다. 저항선 계산에 충분한
-    # 과거 구간(약 300일)을 확보해 최근 90일 신호까지 정상 평가되게 한다.
+    chart_end = effective_date.strftime("%Y%m%d")
+    # 저항선 재이탈(성과추적 청산) 판정 + 차트에 쓸 지표 적용 OHLCV. 저항선 계산에
+    # 충분한 과거 구간(약 300일)을 확보해 최근 90일 신호까지 정상 평가되게 한다.
     track_start = (effective_date - pd.DateOffset(days=300)).strftime("%Y%m%d")
     _ohlcv_cache: dict[str, "pd.DataFrame | None"] = {}
 
@@ -121,6 +107,30 @@ def main() -> None:
 
     perf_rows = signal_tracker.evaluate(effective_date, _ohlcv_lookup, lookback_days=30)
     perf_summary = signal_tracker.summarize(effective_date, _ohlcv_lookup, window_days=90)
+
+    # ── 6-1. 차트 JSON 생성 (신호·워치리스트·성과추적 종목, 클릭 시 lazy 렌더) ──────
+    from report_builder.charts import make_chart_json
+
+    # 52주고가 수평선 값 (있는 종목만; 성과추적 종목은 없으면 생략)
+    high52_map: dict[str, float] = {s.ticker: s.high_52w for s in signals}
+    high52_map.update({w.ticker: w.high_52w for w in watchlist[:20]})
+
+    chart_tickers = (
+        [s.ticker for s in signals]
+        + [w.ticker for w in watchlist[:20]]
+        + [r.ticker for r in perf_rows]
+    )
+    charts: dict[str, str] = {}
+    for tk in dict.fromkeys(chart_tickers):  # 순서 유지 + 중복 제거
+        df = _ohlcv_lookup(tk)
+        if df is None or df.empty:
+            continue
+        try:
+            cj = make_chart_json(tk, df, effective_date, high_52w=high52_map.get(tk))
+            if cj:
+                charts[tk] = cj
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("차트 생성 실패 %s: %s", tk, exc)
 
     # ── 7. 리포트 빌드 ────────────────────────────────────────────────────────
     from report_builder.builder import build as build_report

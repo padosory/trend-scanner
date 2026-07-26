@@ -548,6 +548,50 @@ details.collapse .news-list { margin-top: 0; }
 .w-reason-vol  { background: rgba(245,124,0,.14);  color: #e8890c; }
 [data-theme="dark"] .w-reason-vol { color: #f0a63a; }
 
+/* ── 네이버 링크 · 차트 토글(lazy) ── */
+.naver-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #03c75a;               /* 네이버 그린 */
+  text-decoration: none;
+  border: 1px solid rgba(3,199,90,.4);
+  border-radius: 5px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.naver-link:hover { background: rgba(3,199,90,.12); }
+
+.chart-toggle {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.chart-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.chart-box { display: none; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+.chart-box.open { display: block; }
+.lazy-chart { width: 100%; min-height: 60px; }
+
+/* 표 안 차트 행 */
+tr.chart-row { display: none; }
+tr.chart-row.open { display: table-row; }
+tr.chart-row > td { padding: 6px 8px 14px; }
+.row-toggle { cursor: pointer; }
+.row-toggle:hover { background: var(--surface2); }
+.chart-cell { text-align: center; }
+.chart-cell .cbtn {
+  background: none; border: 1px solid var(--border); color: var(--text3);
+  border-radius: 5px; padding: 1px 7px; font-size: 0.78rem; cursor: pointer;
+}
+.chart-cell .cbtn:hover { border-color: var(--accent); color: var(--accent); }
+
 /* ── 푸터 ── */
 footer {
   text-align: center;
@@ -804,6 +848,7 @@ footer {
       <div class="signal-header">
         <span class="ticker">{{ s.ticker }}</span>
         <span class="stock-name">{{ name_map.get(s.ticker, "") }}</span>
+        <a class="naver-link" href="https://finance.naver.com/item/main.naver?code={{ s.ticker }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="네이버 금융에서 보기">N↗</a>
         <span class="rs-badge" title="KRX 전체 종목 중 60일 수익률 상위 {{ "%.0f" | format((1 - s.rs_percentile) * 100) }}%">상대강도 {{ "%.0f" | format(s.rs_percentile * 100) }}%</span>
         <span class="close-price">{{ "{:,.0f}원".format(s.close) }}</span>
       </div>
@@ -887,7 +932,8 @@ footer {
       {% endif %}
 
       {% if charts.get(s.ticker) %}
-      <div class="chart-container">{{ charts.get(s.ticker) | safe }}</div>
+      <button class="chart-toggle" onclick="toggleChart(this)">📈 차트 보기</button>
+      <div class="chart-box"><div class="lazy-chart" data-chart-id="chart_{{ s.ticker }}"></div></div>
       {% endif %}
     </div>
     {% endfor %}
@@ -923,18 +969,24 @@ footer {
         <div class="perf-wrap">
           <table class="watch-table">
             <thead>
-              <tr><th>종목</th><th>사유</th><th>현재가</th><th>고가근접</th><th>거래량</th><th>60일수익률</th></tr>
+              <tr><th>종목</th><th>사유</th><th>현재가</th><th>고가근접</th><th>거래량</th><th>60일수익률</th><th></th></tr>
             </thead>
             <tbody>
               {% for w in watchlist[:20] %}
               <tr>
-                <td class="w-name">{{ name_map.get(w.ticker, "") }}<br><span class="w-ticker">{{ w.ticker }}</span></td>
+                <td class="w-name">{{ name_map.get(w.ticker, "") }}
+                  <a class="naver-link" href="https://finance.naver.com/item/main.naver?code={{ w.ticker }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="네이버 금융에서 보기">N↗</a>
+                  <br><span class="w-ticker">{{ w.ticker }}</span></td>
                 <td class="w-reason-cell"><span class="w-reason {{ 'w-reason-vol' if w.reason == '거래량 미달' else 'w-reason-near' }}">{{ w.reason }}</span></td>
                 <td>{{ "{:,.0f}".format(w.close) }}</td>
                 <td class="w-dim">{{ "%.1f" | format(w.proximity_pct) }}%</td>
                 <td class="w-dim">{% if w.vol_ratio == w.vol_ratio %}{{ "%.1f" | format(w.vol_ratio) }}×{% else %}—{% endif %}</td>
                 <td class="{% if w.return_60d >= 0 %}up{% else %}down{% endif %}">{{ "%+.1f" | format(w.return_60d * 100) }}%</td>
+                <td class="chart-cell">{% if charts.get(w.ticker) %}<button class="cbtn" onclick="toggleRowChart(this)" title="차트">📈</button>{% endif %}</td>
               </tr>
+              {% if charts.get(w.ticker) %}
+              <tr class="chart-row"><td colspan="7"><div class="lazy-chart" data-chart-id="chart_{{ w.ticker }}"></div></td></tr>
+              {% endif %}
               {% endfor %}
             </tbody>
           </table>
@@ -970,19 +1022,25 @@ footer {
     <div class="perf-wrap">
       <table class="perf-table">
         <thead>
-          <tr><th>신호일</th><th>종목</th><th>진입가</th><th>현재가</th><th>수익률</th><th>경과</th><th>상태</th></tr>
+          <tr><th>신호일</th><th>종목</th><th>진입가</th><th>현재가</th><th>수익률</th><th>경과</th><th>상태</th><th></th></tr>
         </thead>
         <tbody>
           {% for r in perf_rows %}
           <tr>
             <td>{{ r.date }}</td>
-            <td class="perf-name">{{ r.name }}<br><span class="perf-ticker">{{ r.ticker }}</span></td>
+            <td class="perf-name">{{ r.name }}
+              <a class="naver-link" href="https://finance.naver.com/item/main.naver?code={{ r.ticker }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="네이버 금융에서 보기">N↗</a>
+              <br><span class="perf-ticker">{{ r.ticker }}</span></td>
             <td>{{ "{:,.0f}".format(r.entry) }}</td>
             <td>{{ "{:,.0f}".format(r.current) }}</td>
             <td class="{% if r.return_pct >= 0 %}up{% else %}down{% endif %}">{{ "%+.1f" | format(r.return_pct) }}%</td>
             <td>{{ r.days_held }}일</td>
             <td>{% if r.status == '청산' %}🏁 {% endif %}{{ r.status }}</td>
+            <td class="chart-cell">{% if charts.get(r.ticker) %}<button class="cbtn" onclick="toggleRowChart(this)" title="차트">📈</button>{% endif %}</td>
           </tr>
+          {% if charts.get(r.ticker) %}
+          <tr class="chart-row"><td colspan="8"><div class="lazy-chart" data-chart-id="chart_{{ r.ticker }}"></div></td></tr>
+          {% endif %}
           {% endfor %}
         </tbody>
       </table>
@@ -996,6 +1054,11 @@ footer {
 <footer>
   Generated by trend_scanner · {{ scan_date }}
 </footer>
+
+<!-- 차트 데이터 (종목 펼칠 때 Plotly.newPlot으로 lazy 렌더) -->
+{% for tk, cj in charts.items() %}
+<script type="application/json" id="chart_{{ tk }}">{{ cj | safe }}</script>
+{% endfor %}
 
 <script>
 (function () {
@@ -1021,6 +1084,29 @@ function toggleInfo(btn) {
 
 function toggleSpark(card) {
   card.classList.toggle('open');
+}
+
+// 차트 lazy 렌더 — 펼치는 순간에만 Plotly.newPlot (초기 로드 가볍게)
+function renderLazyChart(el) {
+  if (!el || el.dataset.rendered) return;
+  const src = document.getElementById(el.dataset.chartId);
+  if (!src || typeof Plotly === 'undefined') return;
+  try {
+    const spec = JSON.parse(src.textContent);
+    Plotly.newPlot(el, spec.data, spec.layout, {displayModeBar: false, responsive: true});
+    el.dataset.rendered = '1';
+  } catch (e) { /* 렌더 실패 무시 */ }
+}
+function toggleChart(btn) {           // 신호 카드용
+  const box = btn.nextElementSibling;
+  if (!box) return;
+  if (box.classList.toggle('open')) renderLazyChart(box.querySelector('.lazy-chart'));
+}
+function toggleRowChart(btn) {        // 표(워치리스트·성과추적)용
+  const row = btn.closest('tr');
+  const chartRow = row ? row.nextElementSibling : null;
+  if (!chartRow || !chartRow.classList.contains('chart-row')) return;
+  if (chartRow.classList.toggle('open')) renderLazyChart(chartRow.querySelector('.lazy-chart'));
 }
 </script>
 </body>

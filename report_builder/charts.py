@@ -1,6 +1,8 @@
-"""Plotly 캔들스틱+거래량 차트 → HTML div 문자열.
+"""Plotly 캔들스틱+거래량 차트.
 
 include_plotlyjs=False 를 사용하므로 템플릿에서 Plotly CDN 스크립트를 로드해야 한다.
+차트는 lazy 렌더용으로 fig JSON(make_chart_json)을 반환하고, 실제 그리기는
+브라우저에서 종목을 펼칠 때 Plotly.newPlot으로 수행한다.
 """
 
 import logging
@@ -10,15 +12,15 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def make_chart_div(ticker: str, df: pd.DataFrame, scan_date: pd.Timestamp,
-                   high_52w: float | None = None) -> str:
-    """최근 120 거래일 캔들스틱+거래량 차트를 HTML div 문자열로 반환한다."""
+def _build_figure(ticker: str, df: pd.DataFrame, scan_date: pd.Timestamp,
+                  high_52w: float | None = None):
+    """최근 120 거래일 캔들스틱+거래량 Plotly Figure를 만든다. plotly 미설치 시 None."""
     try:
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
     except ImportError:
         logger.warning("plotly 미설치 — 차트 생략")
-        return ""
+        return None
 
     recent = df.tail(120).copy()
 
@@ -95,5 +97,25 @@ def make_chart_div(ticker: str, df: pd.DataFrame, scan_date: pd.Timestamp,
         plot_bgcolor="#f9f9f9",
         font=dict(size=11),
     )
+    return fig
 
+
+def make_chart_json(ticker: str, df: pd.DataFrame, scan_date: pd.Timestamp,
+                    high_52w: float | None = None) -> str:
+    """차트 Figure를 JSON 문자열로 반환한다. (lazy 렌더: 브라우저에서 펼칠 때 그림)
+
+    plotly 미설치/데이터 문제 시 빈 문자열.
+    """
+    fig = _build_figure(ticker, df, scan_date, high_52w)
+    if fig is None:
+        return ""
+    return fig.to_json()
+
+
+def make_chart_div(ticker: str, df: pd.DataFrame, scan_date: pd.Timestamp,
+                   high_52w: float | None = None) -> str:
+    """즉시 렌더되는 차트 div HTML (하위호환). 현재 파이프라인은 make_chart_json 사용."""
+    fig = _build_figure(ticker, df, scan_date, high_52w)
+    if fig is None:
+        return ""
     return fig.to_html(full_html=False, include_plotlyjs=False)
