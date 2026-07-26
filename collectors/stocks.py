@@ -49,17 +49,72 @@ class ScanFunnel:
     rs: int            # RS 게이트 통과 (= 최종 신호 수)
 
 
-def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel, list[StockSignal]]:
+@dataclass
+class WatchItem:
+    """돌파 준비(신호 전 단계) 종목 — 매매 신호가 아니라 시장 맥락 참고용.
+
+    reason:
+      "고가 근접"  — 52주 고가의 WATCH_PROXIMITY_LOW~BREAKOUT_HIGH_PCT 구간(돌파 임박)
+      "거래량 미달" — 가격은 돌파(고가 근접 + 저항 돌파)했으나 거래량이 기준 미달
+    """
+    ticker: str
+    close: float
+    high_52w: float
+    proximity_pct: float     # close / 52주고가 * 100
+    vol_ratio: float         # 당일 거래량 / 20일 평균 (NaN 가능)
+    avg_trading_value20: float
+    return_60d: float
+    reason: str
+
+
+def _classify_watch(ticker: str, row: pd.Series, avg_tv: float, ret: float) -> "WatchItem | None":
+    """돌파에 실패한 종목이 워치리스트(고가 근접/거래량 미달)에 해당하는지 판정.
+
+    breakout_scanner.passes()가 False인 행에 대해서만 호출된다.
+    """
+    high = row["high_52w"]
+    close = row["close"]
+    if pd.isna(high) or high <= 0 or pd.isna(close):
+        return None
+
+    resist = row["resistance_60"]
+    volavg = row["vol_avg20"]
+    vol = row["volume"]
+    prox = close / high
+
+    # 가격 돌파(고가 95%+저항 돌파)했는데 여기 왔다 = breakout_scanner=False = 거래량 미달
+    price_breakout = (not pd.isna(resist)) and close >= high * config.BREAKOUT_HIGH_PCT and close > resist
+    if price_breakout:
+        reason = "거래량 미달"
+    elif config.WATCH_PROXIMITY_LOW <= prox < config.BREAKOUT_HIGH_PCT:
+        reason = "고가 근접"
+    else:
+        return None
+
+    vol_ratio = float(vol / volavg) if (not pd.isna(volavg) and volavg > 0) else float("nan")
+    return WatchItem(
+        ticker=ticker,
+        close=float(close),
+        high_52w=float(high),
+        proximity_pct=float(prox * 100),
+        vol_ratio=vol_ratio,
+        avg_trading_value20=float(avg_tv),
+        return_60d=float(ret) if not pd.isna(ret) else 0.0,
+        reason=reason,
+    )
+
+
+def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel, list[WatchItem]]:
     """STEP2+RS 스캔 실행.
 
     Args:
         target_date: YYYYMMDD 문자열 (스캔 대상 날짜)
 
     Returns:
-        (signals, effective_date, funnel, near_miss) —
+        (signals, effective_date, funnel, watchlist) —
         signals는 STEP2+RS 최종 신호, effective_date는 실제 데이터가 있는 마지막
-        거래일, funnel은 단계별 생존 종목 수, near_miss는 돌파는 통과했으나 RS
-        게이트에서 미달한 참고용 종목(RS percentile 내림차순)
+        거래일, funnel은 단계별 생존 종목 수, watchlist는 돌파 준비(고가 근접/
+        거래량 미달) 참고용 종목(고가 근접도 내림차순)
     """
     target_ts = pd.Timestamp(target_date)
     start = (target_ts - pd.DateOffset(days=_OHLCV_HISTORY_DAYS)).strftime("%Y%m%d")
@@ -107,7 +162,7 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel,
     n_traded = n_liquidity = n_market_cap = n_breakout = 0
 
     signals: list[StockSignal] = []
-    near_miss: list[StockSignal] = []  # 돌파 통과, RS 미달 (참고용)
+    watchlist: list[WatchItem] = []  # 돌파 준비(고가 근접/거래량 미달) — 신호 아님, 참고용
     for ticker, df in ticker_data.items():
         if df.index[-1] != effective_date:
             continue
@@ -126,34 +181,37 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel,
             continue
         n_market_cap += 1
 
-        # STEP2 돌파 스캔
-        if not breakout_scanner.passes(row):
-            continue
-        n_breakout += 1
-
-        pct = rs_pct_row.get(ticker, float("nan"))
         ret = ret_row.get(ticker, float("nan"))
-        sig = StockSignal(
-            ticker=ticker,
-            close=float(row["close"]),
-            volume=int(row["volume"]),
-            high_52w=float(row["high_52w"]),
-            resistance_60=float(row["resistance_60"]),
-            vol_avg20=float(row["vol_avg20"]),
-            avg_trading_value20=float(avg_tv),
-            rs_percentile=float(pct) if not pd.isna(pct) else 0.0,
-            return_60d=float(ret) if not pd.isna(ret) else 0.0,
-        )
 
-        # RS 퍼센타일 게이트 — 통과하면 신호, 미달이면 참고용 near-miss
-        if pd.isna(pct) or pct < config.RS_PERCENTILE_THRESHOLD:
-            near_miss.append(sig)
+        # STEP2 돌파 스캔
+        if breakout_scanner.passes(row):
+            n_breakout += 1
+            pct = rs_pct_row.get(ticker, float("nan"))
+            # RS 게이트 통과분만 신호. (돌파+RS미달은 실전상 거의 발생하지 않음)
+            if not pd.isna(pct) and pct >= config.RS_PERCENTILE_THRESHOLD:
+                signals.append(
+                    StockSignal(
+                        ticker=ticker,
+                        close=float(row["close"]),
+                        volume=int(row["volume"]),
+                        high_52w=float(row["high_52w"]),
+                        resistance_60=float(row["resistance_60"]),
+                        vol_avg20=float(row["vol_avg20"]),
+                        avg_trading_value20=float(avg_tv),
+                        rs_percentile=float(pct),
+                        return_60d=float(ret) if not pd.isna(ret) else 0.0,
+                    )
+                )
             continue
 
-        signals.append(sig)
+        # 돌파는 아니지만 '준비 중'인 종목 → 워치리스트 (고가 근접 / 거래량 미달)
+        item = _classify_watch(ticker, row, float(avg_tv), ret)
+        if item is not None:
+            watchlist.append(item)
 
     signals.sort(key=lambda s: s.rs_percentile, reverse=True)
-    near_miss.sort(key=lambda s: s.rs_percentile, reverse=True)
+    # 고가에 가까운 순(돌파 임박에 가까운 순)으로 정렬
+    watchlist.sort(key=lambda w: w.proximity_pct, reverse=True)
 
     funnel = ScanFunnel(
         universe=len(tickers),
@@ -169,6 +227,6 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel,
         funnel.universe, funnel.data_ok, funnel.traded, funnel.liquidity,
         funnel.market_cap, funnel.breakout, funnel.rs,
     )
-    logger.info("STEP2+RS 신호: %d개 · 돌파했으나 RS 미달: %d개 (스캔일: %s)",
-                len(signals), len(near_miss), effective_date.strftime("%Y-%m-%d"))
-    return signals, effective_date, funnel, near_miss
+    logger.info("STEP2+RS 신호: %d개 · 돌파 준비 워치리스트: %d개 (스캔일: %s)",
+                len(signals), len(watchlist), effective_date.strftime("%Y-%m-%d"))
+    return signals, effective_date, funnel, watchlist

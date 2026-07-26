@@ -27,7 +27,7 @@ def build(
     perf_rows: list | None = None,
     perf_summary=None,
     funnel=None,
-    near_miss: list | None = None,
+    watchlist: list | None = None,
 ) -> Path:
     """HTML 리포트를 생성하고 저장 경로를 반환한다.
 
@@ -66,7 +66,7 @@ def build(
         perf_rows=perf_rows or [],
         perf_summary=perf_summary,
         funnel=funnel,
-        near_miss=near_miss or [],
+        watchlist=watchlist or [],
     )
 
     date_str = scan_date.strftime("%Y%m%d")

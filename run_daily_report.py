@@ -29,7 +29,7 @@ def main() -> None:
 
     # ── 1. 주식 STEP2+RS 스캔 ──────────────────────────────────────────────
     from collectors.stocks import scan as stock_scan
-    signals, effective_date, funnel, near_miss = stock_scan(target_date)
+    signals, effective_date, funnel, watchlist = stock_scan(target_date)
 
     # ── 2. 종목명 맵 ────────────────────────────────────────────────────────
     import FinanceDataReader as fdr
@@ -139,7 +139,7 @@ def main() -> None:
         perf_rows=perf_rows,
         perf_summary=perf_summary,
         funnel=funnel,
-        near_miss=near_miss,
+        watchlist=watchlist,
     )
     logger.info("리포트 완료: %s", out_path)
 

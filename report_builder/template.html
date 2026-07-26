@@ -513,29 +513,40 @@ details.collapse > summary:hover { color: var(--accent); }
 details.collapse .collapse-body { padding: 4px 14px 12px; }
 details.collapse .news-list { margin-top: 0; }
 
-/* ── near-miss (돌파했으나 RS 미달) 목록 ── */
-.nearmiss-table {
+/* ── 돌파 준비 워치리스트 ── */
+.watch-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
 }
-.nearmiss-table th, .nearmiss-table td {
+.watch-table th, .watch-table td {
   padding: 6px 8px;
   text-align: right;
   white-space: nowrap;
   border-bottom: 1px solid var(--border);
 }
-.nearmiss-table th:nth-child(1), .nearmiss-table td.nm-name { text-align: left; }
-.nearmiss-table th {
+.watch-table th:nth-child(1), .watch-table td.w-name,
+.watch-table th:nth-child(2), .watch-table td.w-reason-cell { text-align: left; }
+.watch-table th {
   color: var(--text3);
   font-weight: 600;
   font-size: 0.78rem;
 }
-.nearmiss-table tr:last-child td { border-bottom: none; }
-.nearmiss-table td.up   { color: var(--up);   font-weight: 600; }
-.nearmiss-table td.down { color: var(--down); font-weight: 600; }
-.nm-ticker { color: var(--text3); font-size: 0.76rem; }
-.nm-rs { color: var(--text3); }
+.watch-table tr:last-child td { border-bottom: none; }
+.watch-table td.up   { color: var(--up);   font-weight: 600; }
+.watch-table td.down { color: var(--down); font-weight: 600; }
+.w-ticker { color: var(--text3); font-size: 0.76rem; }
+.w-dim { color: var(--text3); }
+.w-reason {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.w-reason-near { background: rgba(26,115,232,.12); color: var(--accent); }
+.w-reason-vol  { background: rgba(245,124,0,.14);  color: #e8890c; }
+[data-theme="dark"] .w-reason-vol { color: #f0a63a; }
 
 /* ── 푸터 ── */
 footer {
@@ -899,34 +910,37 @@ footer {
     </div>
     {% endif %}
 
-    {% if near_miss %}
+    {% if watchlist %}
     <details class="collapse">
-      <summary>돌파했지만 주도주(RS) 미달 · {{ near_miss | length }}개 (참고용)</summary>
+      <summary>돌파 준비 종목 · {{ watchlist | length }}개 (참고용)</summary>
       <div class="collapse-body">
         <p style="font-size:0.82rem;color:var(--text3);margin-bottom:8px;">
-          52주 신고가를 대량 거래로 돌파했으나, 60일 상대강도가 상위 20%에 못 들어
-          신호에서 제외된 종목입니다. 매매 신호가 아니라 <b>"돌파는 나왔다"는 시장 맥락</b> 참고용입니다.
+          아직 신호는 아니지만 돌파에 근접한 종목입니다. 매매 신호가 아니라
+          <b>"시장이 어디서 준비 중인가"</b> 참고용입니다.<br>
+          <span class="w-reason w-reason-near">고가 근접</span> 52주 신고가의 90~95% 구간(돌파 임박) ·
+          <span class="w-reason w-reason-vol">거래량 미달</span> 가격은 돌파했으나 거래량이 기준(20일평균 1.5배) 미달
         </p>
         <div class="perf-wrap">
-          <table class="nearmiss-table">
+          <table class="watch-table">
             <thead>
-              <tr><th>종목</th><th>현재가</th><th>52주고가</th><th>60일수익률</th><th>상대강도</th></tr>
+              <tr><th>종목</th><th>사유</th><th>현재가</th><th>고가근접</th><th>거래량</th><th>60일수익률</th></tr>
             </thead>
             <tbody>
-              {% for s in near_miss[:20] %}
+              {% for w in watchlist[:20] %}
               <tr>
-                <td class="nm-name">{{ name_map.get(s.ticker, "") }}<br><span class="nm-ticker">{{ s.ticker }}</span></td>
-                <td>{{ "{:,.0f}".format(s.close) }}</td>
-                <td>{{ "{:,.0f}".format(s.high_52w) }}</td>
-                <td class="{% if s.return_60d >= 0 %}up{% else %}down{% endif %}">{{ "%+.1f" | format(s.return_60d * 100) }}%</td>
-                <td class="nm-rs">상위 {{ "%.0f" | format((1 - s.rs_percentile) * 100) }}%</td>
+                <td class="w-name">{{ name_map.get(w.ticker, "") }}<br><span class="w-ticker">{{ w.ticker }}</span></td>
+                <td class="w-reason-cell"><span class="w-reason {{ 'w-reason-vol' if w.reason == '거래량 미달' else 'w-reason-near' }}">{{ w.reason }}</span></td>
+                <td>{{ "{:,.0f}".format(w.close) }}</td>
+                <td class="w-dim">{{ "%.1f" | format(w.proximity_pct) }}%</td>
+                <td class="w-dim">{% if w.vol_ratio == w.vol_ratio %}{{ "%.1f" | format(w.vol_ratio) }}×{% else %}—{% endif %}</td>
+                <td class="{% if w.return_60d >= 0 %}up{% else %}down{% endif %}">{{ "%+.1f" | format(w.return_60d * 100) }}%</td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-        {% if near_miss | length > 20 %}
-        <p style="font-size:0.78rem;color:var(--text3);margin-top:8px;">※ 상위 20개만 표시 (전체 {{ near_miss | length }}개)</p>
+        {% if watchlist | length > 20 %}
+        <p style="font-size:0.78rem;color:var(--text3);margin-top:8px;">※ 고가 근접순 상위 20개만 표시 (전체 {{ watchlist | length }}개)</p>
         {% endif %}
       </div>
     </details>

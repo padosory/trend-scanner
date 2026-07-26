@@ -12,6 +12,10 @@ BREAKOUT_HIGH_PCT = 0.95        # 52주 고가의 95% 이상
 BREAKOUT_VOLUME_MULT = 1.5      # 20일 평균거래량의 1.5배 이상
 RESISTANCE_WINDOW = 60          # 직전 60일 저항선 돌파
 
+# 돌파 준비 워치리스트 (매매 신호 아님, 시장 맥락 참고용)
+# 52주 고가의 이 비율 이상~돌파(BREAKOUT_HIGH_PCT) 미만이면 '고가 근접' 후보
+WATCH_PROXIMITY_LOW = 0.90
+
 # 워치리스트 (STEP2 통과 후 STEP3 재검사 대기)
 WATCHLIST_TTL_DAYS = 15
 
