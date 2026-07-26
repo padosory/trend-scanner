@@ -12,6 +12,7 @@ stock_trader 프로젝트에서 pykrx를 짧은 시간에 과도하게 호출해
 """
 
 import logging
+import threading
 import time
 from pathlib import Path
 
@@ -24,6 +25,8 @@ CACHE_DIR = Path(__file__).parent / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
 
 REQUEST_DELAY_SEC = 0.3
+FETCH_TIMEOUT_SEC = 20   # 종목당 pykrx 조회 최대 대기(초). 초과 시 스킵 — KRX 스로틀 시
+                         # 한 종목이 실행을 수 분씩 잡아 전체가 몇 시간 가는 것을 방지.
 _LISTING_CACHE_PATH = CACHE_DIR / "_listing.parquet"
 _CACHE_END_SLACK_DAYS = 5    # 요청 종료일이 휴장일(연말 등)이라 실제 거래 데이터가 살짝 못 미쳐도 캐시 인정
 _CACHE_START_SLACK_DAYS = 7  # 요청 시작일이 공휴일/주말이면 실제 첫 거래일이 며칠 뒤일 수 있음 (근로자의날·설·추석 등)
@@ -132,21 +135,90 @@ def fetch_index_ohlcv(start: str, end: str) -> pd.DataFrame:
     return df.loc[start_ts:end_ts]
 
 
+_OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
+
+
+def _pykrx_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
+    """pykrx OHLCV를 FETCH_TIMEOUT_SEC 타임아웃을 걸어 조회하고 표준 컬럼으로 정규화.
+
+    KRX 스로틀 시 get_market_ohlcv 한 건이 수 분씩 걸릴 수 있어, 데몬 스레드로
+    감싸 시간 제한을 건다(크로스플랫폼). 초과하면 TimeoutError를 던지고(스레드는
+    데몬이라 프로세스 종료를 막지 않음), 상위 호출자가 해당 종목을 스킵한다.
+    """
+    box: dict[str, object] = {}
+
+    def _worker() -> None:
+        try:
+            box["df"] = stock.get_market_ohlcv(start, end, ticker)
+        except Exception as exc:  # noqa: BLE001
+            box["err"] = exc
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    t.join(FETCH_TIMEOUT_SEC)
+    time.sleep(REQUEST_DELAY_SEC)  # 성공/실패와 무관하게 KRX 호출 페이싱
+
+    if t.is_alive():
+        raise TimeoutError(f"pykrx 조회 타임아웃({FETCH_TIMEOUT_SEC}s): {ticker}")
+    if "err" in box:
+        raise box["err"]  # type: ignore[misc]
+
+    df: pd.DataFrame = box["df"]  # type: ignore[assignment]
+    df = df.rename(columns=_COLUMN_MAP)[_OHLCV_COLUMNS]
+    df.index = pd.to_datetime(df.index)
+    return df
+
+
 def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
-    """start/end: YYYYMMDD. 캐시에 요청 구간이 다 들어있으면 캐시만 쓴다."""
+    """start/end: YYYYMMDD. 캐시를 최대한 재사용하고, 끝만 부족하면 증분 조회한다.
+
+    - 캐시가 요청 구간을 (종료일 5일 슬랙 안에서) 덮으면 그대로 반환.
+    - 시작 구간은 덮지만 끝이 낡았으면 '마지막 캐시일 다음날~end'만 받아 병합
+      (전체 재다운로드 대신 증분).
+    - 캐시가 없거나 시작 구간이 부족하면 전체 조회.
+    - 조회 실패/타임아웃 시 기존 캐시가 있으면 그걸 반환(스캔 폭 붕괴 방지),
+      없으면 예외를 던져 상위에서 스킵.
+    """
     cache_path = CACHE_DIR / f"{ticker}.parquet"
     start_ts, end_ts = pd.Timestamp(start), pd.Timestamp(end)
 
+    cached: pd.DataFrame | None = None
     if cache_path.exists():
-        cached = pd.read_parquet(cache_path)
-        if _covers_range(cached, start_ts, end_ts):
-            return cached.loc[start_ts:end_ts]
+        try:
+            cached = pd.read_parquet(cache_path)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("캐시 로드 실패 %s: %s", ticker, exc)
+            cached = None
 
+    if cached is not None and not cached.empty:
+        covers_start = cached.index.min() <= start_ts + pd.Timedelta(days=_CACHE_START_SLACK_DAYS)
+        if covers_start:
+            # 끝이 이미 최신(슬랙 안)이면 조회 없이 캐시 사용
+            if end_ts - cached.index.max() <= pd.Timedelta(days=_CACHE_END_SLACK_DAYS):
+                return cached.loc[start_ts:end_ts]
+            # 끝만 부족 → 마지막 캐시일 다음날부터만 증분 조회
+            inc_start = (cached.index.max() + pd.Timedelta(days=1)).strftime("%Y%m%d")
+            logger.info("pykrx 증분 조회: %s (%s~%s)", ticker, inc_start, end)
+            try:
+                new = _pykrx_ohlcv(ticker, inc_start, end)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("증분 조회 실패 %s: %s — 기존 캐시로 진행", ticker, exc)
+                return cached.loc[start_ts:end_ts]
+            if new is not None and not new.empty:
+                combined = pd.concat([cached, new])
+                combined = combined[~combined.index.duplicated(keep="last")].sort_index()
+                combined.to_parquet(cache_path)
+                return combined.loc[start_ts:end_ts]
+            return cached.loc[start_ts:end_ts]  # 새 거래 데이터 없음(휴장 등)
+
+    # 캐시 없음 or 시작 구간 미달 → 전체 조회
     logger.info("pykrx 조회: %s (%s~%s)", ticker, start, end)
-    df = stock.get_market_ohlcv(start, end, ticker)
-    time.sleep(REQUEST_DELAY_SEC)
-
-    df = df.rename(columns=_COLUMN_MAP)[["open", "high", "low", "close", "volume"]]
-    df.index = pd.to_datetime(df.index)
-    df.to_parquet(cache_path)
-    return df.loc[start_ts:end_ts]
+    try:
+        full = _pykrx_ohlcv(ticker, start, end)
+    except Exception:  # noqa: BLE001
+        if cached is not None and not cached.empty:
+            logger.debug("전체 조회 실패 %s — 기존 캐시로 진행", ticker)
+            return cached.loc[start_ts:end_ts]
+        raise
+    full.to_parquet(cache_path)
+    return full.loc[start_ts:end_ts]

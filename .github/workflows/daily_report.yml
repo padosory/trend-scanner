@@ -17,6 +17,7 @@ concurrency:
 jobs:
   scan-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 45          # 호출당 타임아웃과 별개로, 잡이 폭주해도 45분에 강제 종료
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
