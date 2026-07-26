@@ -222,3 +222,78 @@ def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
         raise
     full.to_parquet(cache_path)
     return full.loc[start_ts:end_ts]
+
+
+def refresh_latest() -> "pd.Timestamp | None":
+    """FDR 전종목 스냅샷으로 캐시들을 '최신 거래일'까지 1콜에 대량 갱신한다.
+
+    pykrx의 날짜별 스냅샷 엔드포인트는 이 환경에서 막혀 있어(per-ticker만 동작),
+    per-ticker 개별 증분 조회는 수천 콜이 든다. 대신 FDR StockListing(전종목 현재가
+    스냅샷)을 써서 최신 1거래일치를 한 번에 반영한다.
+
+    안전장치:
+      - FDR 스냅샷은 날짜 라벨이 없어 '최신 세션'만 준다. 앵커 종목(삼성전자)을
+        pykrx per-ticker로 조회해 최신 거래일(snap_date)·직전 거래일(prev_date)·
+        종가를 확정하고, FDR의 앵커 종가가 일치할 때만(장중/불일치면 스킵) 반영.
+      - 캐시가 '직전 거래일(prev_date)'까지 정확히 차 있는 종목에만 snap_date 1행을
+        붙인다(연속 보장). gap이 있는 종목은 건드리지 않고 per-ticker 조회에 맡긴다.
+
+    반환: 갱신 기준 최신 거래일(snap_date), 갱신 불가/스킵 시 None.
+    """
+    anchor = "005930"  # 삼성전자 — 거래정지 없는 안정적 앵커
+    try:
+        recent = (pd.Timestamp.now() - pd.Timedelta(days=15)).strftime("%Y%m%d")
+        today = pd.Timestamp.now().strftime("%Y%m%d")
+        a = _pykrx_ohlcv(anchor, recent, today)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("스냅샷 갱신 스킵 — 앵커 조회 실패: %s", exc)
+        return None
+    if a is None or len(a) < 2:
+        return None
+    snap_date, prev_date = a.index[-1], a.index[-2]
+    anchor_close = int(round(float(a["close"].iloc[-1])))
+
+    try:
+        import FinanceDataReader as fdr
+        listing = fdr.StockListing("KRX")
+    except Exception as exc:  # noqa: BLE001
+        logger.info("스냅샷 갱신 스킵 — FDR 조회 실패: %s", exc)
+        return None
+
+    arow = listing[listing["Code"] == anchor]
+    if arow.empty or int(round(float(arow.iloc[0]["Close"]))) != anchor_close:
+        logger.info("스냅샷 갱신 스킵 — FDR가 최신 세션(%s)과 불일치(장중 등)", snap_date.date())
+        return None
+
+    # 전종목 OHLCV 스냅샷을 dict로
+    snap: dict[str, tuple] = {}
+    for _, r in listing.iterrows():
+        try:
+            snap[r["Code"]] = (float(r["Open"]), float(r["High"]), float(r["Low"]),
+                               float(r["Close"]), float(r["Volume"]))
+        except (ValueError, TypeError):
+            continue
+
+    updated = 0
+    for p in CACHE_DIR.glob("*.parquet"):
+        code = p.stem
+        if code.startswith("_") or code not in snap:
+            continue
+        try:
+            df = pd.read_parquet(p)
+        except Exception:  # noqa: BLE001
+            continue
+        if df.empty or df.index.max() != prev_date:  # 이미 최신이거나 gap → 스킵
+            continue
+        o, h, l, c, v = snap[code]
+        if any(pd.isna(x) for x in (o, h, l, c, v)):
+            continue
+        row = pd.DataFrame({"open": [o], "high": [h], "low": [l], "close": [c], "volume": [v]},
+                           index=[snap_date])
+        combined = pd.concat([df, row])
+        combined = combined[~combined.index.duplicated(keep="last")].sort_index()
+        combined.to_parquet(p)
+        updated += 1
+
+    logger.info("FDR 스냅샷 갱신: %d종목 → %s (직전 %s)", updated, snap_date.date(), prev_date.date())
+    return snap_date

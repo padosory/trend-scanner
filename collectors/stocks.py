@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 import config
-from backtest.data_cache import estimate_market_cap, fetch_ohlcv, get_universe
+from backtest.data_cache import estimate_market_cap, fetch_ohlcv, get_universe, refresh_latest
 from scanners import breakout_scanner
 from scanners.indicators import add_indicators
 
@@ -118,6 +118,14 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel,
     """
     target_ts = pd.Timestamp(target_date)
     start = (target_ts - pd.DateOffset(days=_OHLCV_HISTORY_DAYS)).strftime("%Y%m%d")
+
+    # 최근 날짜 스캔이면 FDR 전종목 스냅샷으로 캐시를 최신 거래일까지 1콜에 갱신.
+    # (per-ticker 증분 수천 콜을 피해 staleness를 싸게 해소. 과거 날짜 백테스트엔 불필요)
+    if target_ts >= pd.Timestamp.now().normalize() - pd.Timedelta(days=7):
+        try:
+            refresh_latest()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("스냅샷 갱신 실패(무시하고 진행): %s", exc)
 
     tickers = get_universe()
     logger.info("유니버스 %d개 종목 로딩 시작 (%s ~ %s)", len(tickers), start, target_date)
