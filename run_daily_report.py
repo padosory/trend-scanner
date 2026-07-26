@@ -31,10 +31,9 @@ def main() -> None:
     from collectors.stocks import scan as stock_scan
     signals, effective_date, funnel, watchlist = stock_scan(target_date)
 
-    # ── 2. 종목명 맵 ────────────────────────────────────────────────────────
-    import FinanceDataReader as fdr
-    listing = fdr.StockListing("KRX")
-    name_map: dict[str, str] = dict(zip(listing["Code"], listing["Name"]))
+    # ── 2. 종목명 맵 (FDR 실패 시 캐시 폴백 — KRX 간헐 차단에도 리포트는 생성) ──
+    from backtest.data_cache import get_name_map
+    name_map: dict[str, str] = get_name_map()
 
     # ── 3. 거시경제 수집 ─────────────────────────────────────────────────────
     from collectors.macro import fetch as macro_fetch

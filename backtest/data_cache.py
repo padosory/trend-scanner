@@ -28,6 +28,7 @@ REQUEST_DELAY_SEC = 0.3
 FETCH_TIMEOUT_SEC = 20   # 종목당 pykrx 조회 최대 대기(초). 초과 시 스킵 — KRX 스로틀 시
                          # 한 종목이 실행을 수 분씩 잡아 전체가 몇 시간 가는 것을 방지.
 _LISTING_CACHE_PATH = CACHE_DIR / "_listing.parquet"
+_NAMES_CACHE_PATH = CACHE_DIR / "_names.parquet"
 _CACHE_END_SLACK_DAYS = 2    # 요청 종료일과 캐시 마지막일 허용 간격(달력일). 주말 정도만 관용.
                              # refresh_latest()가 캐시를 최신 거래일까지 미리 채워주므로
                              # 낮아도 대량 재조회를 유발하지 않고, staleness만 줄인다.
@@ -77,6 +78,32 @@ def get_universe() -> list[str]:
     빠진다(생존편향). 1차 백테스트에서는 감안하고 진행.
     """
     return _load_listing()["Code"].tolist()
+
+
+def get_name_map() -> dict[str, str]:
+    """{티커: 종목명}. FDR StockListing로 만들고 캐시한다.
+
+    FDR/KRX가 간헐적으로 막혀 조회가 실패할 수 있으므로(빈 응답→JSONDecodeError),
+    실패 시 직전 캐시(_names.parquet)로 폴백한다. 캐시도 없으면 빈 dict(종목명
+    자리에 티커가 노출되지만 리포트는 정상 생성). CI 캐시로 파케이가 유지된다.
+    """
+    try:
+        import FinanceDataReader as fdr
+        listing = fdr.StockListing("KRX")
+        names = dict(zip(listing["Code"], listing["Name"]))
+        if names:
+            pd.DataFrame({"Code": list(names), "Name": list(names.values())}).to_parquet(_NAMES_CACHE_PATH)
+            return names
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("종목명 조회 실패 — 캐시 폴백: %s", exc)
+
+    if _NAMES_CACHE_PATH.exists():
+        try:
+            df = pd.read_parquet(_NAMES_CACHE_PATH)
+            return dict(zip(df["Code"], df["Name"]))
+        except Exception:  # noqa: BLE001
+            pass
+    return {}
 
 
 def get_shares_outstanding(ticker: str) -> float | None:
