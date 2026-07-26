@@ -49,15 +49,17 @@ class ScanFunnel:
     rs: int            # RS 게이트 통과 (= 최종 신호 수)
 
 
-def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel]:
+def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel, list[StockSignal]]:
     """STEP2+RS 스캔 실행.
 
     Args:
         target_date: YYYYMMDD 문자열 (스캔 대상 날짜)
 
     Returns:
-        (signals, effective_date, funnel) — effective_date는 실제 데이터가 있는
-        마지막 거래일, funnel은 단계별 생존 종목 수
+        (signals, effective_date, funnel, near_miss) —
+        signals는 STEP2+RS 최종 신호, effective_date는 실제 데이터가 있는 마지막
+        거래일, funnel은 단계별 생존 종목 수, near_miss는 돌파는 통과했으나 RS
+        게이트에서 미달한 참고용 종목(RS percentile 내림차순)
     """
     target_ts = pd.Timestamp(target_date)
     start = (target_ts - pd.DateOffset(days=_OHLCV_HISTORY_DAYS)).strftime("%Y%m%d")
@@ -82,7 +84,7 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel]
 
     if not ticker_data:
         logger.warning("유효 데이터 없음 — 휴장일이거나 데이터 문제")
-        return [], target_ts, ScanFunnel(len(tickers), 0, 0, 0, 0, 0, 0)
+        return [], target_ts, ScanFunnel(len(tickers), 0, 0, 0, 0, 0, 0), []
 
     # 실제 스캔 날짜: 타겟 이하 데이터가 가장 많은 거래일
     effective_date: pd.Timestamp = max(df.index[-1] for df in ticker_data.values())
@@ -95,7 +97,7 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel]
     if effective_date not in rs_pct_df.index:
         available = rs_pct_df.index[rs_pct_df.index <= effective_date]
         if available.empty:
-            return [], effective_date, ScanFunnel(len(tickers), len(ticker_data), 0, 0, 0, 0, 0)
+            return [], effective_date, ScanFunnel(len(tickers), len(ticker_data), 0, 0, 0, 0, 0), []
         effective_date = available[-1]
 
     rs_pct_row = rs_pct_df.loc[effective_date]
@@ -105,6 +107,7 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel]
     n_traded = n_liquidity = n_market_cap = n_breakout = 0
 
     signals: list[StockSignal] = []
+    near_miss: list[StockSignal] = []  # 돌파 통과, RS 미달 (참고용)
     for ticker, df in ticker_data.items():
         if df.index[-1] != effective_date:
             continue
@@ -128,27 +131,29 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel]
             continue
         n_breakout += 1
 
-        # RS 퍼센타일 게이트
         pct = rs_pct_row.get(ticker, float("nan"))
-        if pd.isna(pct) or pct < config.RS_PERCENTILE_THRESHOLD:
-            continue
-
         ret = ret_row.get(ticker, float("nan"))
-        signals.append(
-            StockSignal(
-                ticker=ticker,
-                close=float(row["close"]),
-                volume=int(row["volume"]),
-                high_52w=float(row["high_52w"]),
-                resistance_60=float(row["resistance_60"]),
-                vol_avg20=float(row["vol_avg20"]),
-                avg_trading_value20=float(avg_tv),
-                rs_percentile=float(pct),
-                return_60d=float(ret) if not pd.isna(ret) else 0.0,
-            )
+        sig = StockSignal(
+            ticker=ticker,
+            close=float(row["close"]),
+            volume=int(row["volume"]),
+            high_52w=float(row["high_52w"]),
+            resistance_60=float(row["resistance_60"]),
+            vol_avg20=float(row["vol_avg20"]),
+            avg_trading_value20=float(avg_tv),
+            rs_percentile=float(pct) if not pd.isna(pct) else 0.0,
+            return_60d=float(ret) if not pd.isna(ret) else 0.0,
         )
 
+        # RS 퍼센타일 게이트 — 통과하면 신호, 미달이면 참고용 near-miss
+        if pd.isna(pct) or pct < config.RS_PERCENTILE_THRESHOLD:
+            near_miss.append(sig)
+            continue
+
+        signals.append(sig)
+
     signals.sort(key=lambda s: s.rs_percentile, reverse=True)
+    near_miss.sort(key=lambda s: s.rs_percentile, reverse=True)
 
     funnel = ScanFunnel(
         universe=len(tickers),
@@ -164,5 +169,6 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel]
         funnel.universe, funnel.data_ok, funnel.traded, funnel.liquidity,
         funnel.market_cap, funnel.breakout, funnel.rs,
     )
-    logger.info("STEP2+RS 신호: %d개 (스캔일: %s)", len(signals), effective_date.strftime("%Y-%m-%d"))
-    return signals, effective_date, funnel
+    logger.info("STEP2+RS 신호: %d개 · 돌파했으나 RS 미달: %d개 (스캔일: %s)",
+                len(signals), len(near_miss), effective_date.strftime("%Y-%m-%d"))
+    return signals, effective_date, funnel, near_miss

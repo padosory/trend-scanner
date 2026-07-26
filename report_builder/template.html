@@ -482,6 +482,61 @@ section h2 {
 .funnel .fn-step.fn-key b { color: var(--accent); }
 .funnel .fn-arrow { color: var(--text3); opacity: .6; }
 
+/* ── 접이식(details) 공통 ── */
+details.collapse {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+details.collapse > summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text2);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+details.collapse > summary::-webkit-details-marker { display: none; }
+details.collapse > summary::before {
+  content: "▸";
+  color: var(--text3);
+  transition: transform .15s;
+}
+details.collapse[open] > summary::before { transform: rotate(90deg); }
+details.collapse > summary:hover { color: var(--accent); }
+details.collapse .collapse-body { padding: 4px 14px 12px; }
+details.collapse .news-list { margin-top: 0; }
+
+/* ── near-miss (돌파했으나 RS 미달) 목록 ── */
+.nearmiss-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.nearmiss-table th, .nearmiss-table td {
+  padding: 6px 8px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.nearmiss-table th:nth-child(1), .nearmiss-table td.nm-name { text-align: left; }
+.nearmiss-table th {
+  color: var(--text3);
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+.nearmiss-table tr:last-child td { border-bottom: none; }
+.nearmiss-table td.up   { color: var(--up);   font-weight: 600; }
+.nearmiss-table td.down { color: var(--down); font-weight: 600; }
+.nm-ticker { color: var(--text3); font-size: 0.76rem; }
+.nm-rs { color: var(--text3); }
+
 /* ── 푸터 ── */
 footer {
   text-align: center;
@@ -667,14 +722,19 @@ footer {
     <div class="news-summary">{{ kr_summary or "뉴스 요약 데이터 없음" }}</div>
 
     {% if kr_news_items %}
-    <ul class="news-list">
-      {% for item in kr_news_items %}
-      <li>
-        <span class="news-source">{{ item.source }}</span>
-        <a href="{{ item.link }}" target="_blank" rel="noopener">{{ item.title }}</a>
-      </li>
-      {% endfor %}
-    </ul>
+    <details class="collapse">
+      <summary>관련 뉴스 {{ kr_news_items | length }}건 보기</summary>
+      <div class="collapse-body">
+        <ul class="news-list">
+          {% for item in kr_news_items %}
+          <li>
+            <span class="news-source">{{ item.source }}</span>
+            <a href="{{ item.link }}" target="_blank" rel="noopener">{{ item.title }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </details>
     {% endif %}
   </section>
 
@@ -684,14 +744,19 @@ footer {
     <div class="news-summary">{{ global_summary or "뉴스 요약 데이터 없음" }}</div>
 
     {% if global_news_items %}
-    <ul class="news-list">
-      {% for item in global_news_items %}
-      <li>
-        <span class="news-source">{{ item.source }}</span>
-        <a href="{{ item.link }}" target="_blank" rel="noopener">{{ item.title }}</a>
-      </li>
-      {% endfor %}
-    </ul>
+    <details class="collapse">
+      <summary>관련 뉴스 {{ global_news_items | length }}건 보기</summary>
+      <div class="collapse-body">
+        <ul class="news-list">
+          {% for item in global_news_items %}
+          <li>
+            <span class="news-source">{{ item.source }}</span>
+            <a href="{{ item.link }}" target="_blank" rel="noopener">{{ item.title }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </details>
     {% endif %}
   </section>
 
@@ -832,6 +897,39 @@ footer {
         {% endif %}
       </div>
     </div>
+    {% endif %}
+
+    {% if near_miss %}
+    <details class="collapse">
+      <summary>돌파했지만 주도주(RS) 미달 · {{ near_miss | length }}개 (참고용)</summary>
+      <div class="collapse-body">
+        <p style="font-size:0.82rem;color:var(--text3);margin-bottom:8px;">
+          52주 신고가를 대량 거래로 돌파했으나, 60일 상대강도가 상위 20%에 못 들어
+          신호에서 제외된 종목입니다. 매매 신호가 아니라 <b>"돌파는 나왔다"는 시장 맥락</b> 참고용입니다.
+        </p>
+        <div class="perf-wrap">
+          <table class="nearmiss-table">
+            <thead>
+              <tr><th>종목</th><th>현재가</th><th>52주고가</th><th>60일수익률</th><th>상대강도</th></tr>
+            </thead>
+            <tbody>
+              {% for s in near_miss[:20] %}
+              <tr>
+                <td class="nm-name">{{ name_map.get(s.ticker, "") }}<br><span class="nm-ticker">{{ s.ticker }}</span></td>
+                <td>{{ "{:,.0f}".format(s.close) }}</td>
+                <td>{{ "{:,.0f}".format(s.high_52w) }}</td>
+                <td class="{% if s.return_60d >= 0 %}up{% else %}down{% endif %}">{{ "%+.1f" | format(s.return_60d * 100) }}%</td>
+                <td class="nm-rs">상위 {{ "%.0f" | format((1 - s.rs_percentile) * 100) }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if near_miss | length > 20 %}
+        <p style="font-size:0.78rem;color:var(--text3);margin-top:8px;">※ 상위 20개만 표시 (전체 {{ near_miss | length }}개)</p>
+        {% endif %}
+      </div>
+    </details>
     {% endif %}
   </section>
 
