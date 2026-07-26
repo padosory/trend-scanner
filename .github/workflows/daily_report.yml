@@ -78,7 +78,14 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add data/
             git commit -m "data: 신호 히스토리·시장 상태 업데이트 [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
+            # 원격이 앞서 있으면(동시 실행·수동 push 등) 그냥 push는 거부되므로,
+            # data/ 커밋을 원격 위로 rebase한 뒤 push한다. 충돌 시 최대 3회 재시도.
+            for i in 1 2 3; do
+              git pull --rebase origin ${{ github.ref_name }} && \
+              git push origin HEAD:${{ github.ref_name }} && break
+              echo "push 재시도 $i..."
+              sleep 3
+            done
           else
             echo "데이터 변경 없음 — 커밋 스킵"
           fi

@@ -141,12 +141,21 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel,
         logger.warning("유효 데이터 없음 — 휴장일이거나 데이터 문제")
         return [], target_ts, ScanFunnel(len(tickers), 0, 0, 0, 0, 0, 0), []
 
-    # 실제 스캔 날짜: 타겟 이하 데이터가 가장 많은 거래일
-    effective_date: pd.Timestamp = max(df.index[-1] for df in ticker_data.values())
+    # 실제 스캔 날짜: 다수 종목이 공유하는 가장 최근 거래일.
+    # max(마지막일)로 잡으면, 캐시가 부분적으로만 최신일 때(일부 종목만 새로 받아져
+    # 더 최근 날짜를 가짐) 소수 종목이 effective_date를 끌어올려 나머지 대부분이
+    # 'effective_date에 데이터 없음'으로 탈락 → 스캔 폭이 붕괴한다. 그래서 max가
+    # 아니라 '충분한 폭(최다 코호트의 절반 이상)을 확보하는 최신일'을 쓴다.
+    last_dates = pd.Series([df.index[-1] for df in ticker_data.values()])
+    date_counts = last_dates.value_counts()
+    breadth_floor = 0.5 * date_counts.max()
+    effective_date: pd.Timestamp = max(d for d, c in date_counts.items() if c >= breadth_floor)
 
-    # RS percentile: market_data.py와 동일한 방법으로 cross-sectional 계산
+    # RS percentile: market_data.py와 동일한 방법으로 cross-sectional 계산.
+    # fill_method=None: 결측(거래정지 등)을 앞값으로 채우지 않아 pandas 경고를
+    # 없애고, 데이터가 없는 종목이 잘못된 수익률로 랭크되지 않게 한다.
     closes = pd.DataFrame({t: df["close"] for t, df in ticker_data.items()})
-    returns_60d = closes.pct_change(config.RS_LOOKBACK_DAYS)
+    returns_60d = closes.pct_change(config.RS_LOOKBACK_DAYS, fill_method=None)
     rs_pct_df = returns_60d.rank(axis=1, pct=True)
 
     if effective_date not in rs_pct_df.index:
@@ -227,6 +236,12 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel,
         funnel.universe, funnel.data_ok, funnel.traded, funnel.liquidity,
         funnel.market_cap, funnel.breakout, funnel.rs,
     )
+    # 로드된 종목 대비 effective_date 거래 종목이 너무 적으면 데이터 불완전 신호
+    if funnel.data_ok and funnel.traded < 0.5 * funnel.data_ok:
+        logger.warning(
+            "스캔 폭 경고: effective_date(%s) 거래 %d/%d — 데이터가 불완전할 수 있음(캐시 지연 등)",
+            effective_date.strftime("%Y-%m-%d"), funnel.traded, funnel.data_ok,
+        )
     logger.info("STEP2+RS 신호: %d개 · 돌파 준비 워치리스트: %d개 (스캔일: %s)",
                 len(signals), len(watchlist), effective_date.strftime("%Y-%m-%d"))
     return signals, effective_date, funnel, watchlist
