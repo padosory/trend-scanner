@@ -443,6 +443,45 @@ section h2 {
 .perf-table td.down { color: var(--down); font-weight: 600; }
 .perf-ticker { color: var(--text3); font-size: 0.78rem; }
 
+/* ── 성과 요약 배너 ── */
+.perf-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+}
+.perf-summary .ps-item { color: var(--text2); }
+.perf-summary .ps-item b { color: var(--text); font-size: 1.05rem; }
+.perf-summary .ps-item.up   b { color: var(--up); }
+.perf-summary .ps-item.down b { color: var(--down); }
+
+/* ── 스캔 깔때기 ── */
+.funnel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 4px;
+  margin: 4px 0 14px;
+  font-size: 0.82rem;
+  color: var(--text3);
+}
+.funnel .fn-step {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+.funnel .fn-step b { color: var(--text2); }
+.funnel .fn-step.fn-key { border-color: var(--accent); }
+.funnel .fn-step.fn-key b { color: var(--accent); }
+.funnel .fn-arrow { color: var(--text3); opacity: .6; }
+
 /* ── 푸터 ── */
 footer {
   text-align: center;
@@ -667,6 +706,22 @@ footer {
       <span style="color:var(--text3);">※ 눌림목 등 다른 전략 신호는 향후 추가될 예정입니다.</span>
     </div>
 
+    {% if funnel %}
+    <div class="funnel" title="스캔 각 단계에서 살아남은 종목 수">
+      <span class="fn-step">유니버스 <b>{{ "{:,}".format(funnel.universe) }}</b></span>
+      <span class="fn-arrow">→</span>
+      <span class="fn-step">거래 <b>{{ "{:,}".format(funnel.traded) }}</b></span>
+      <span class="fn-arrow">→</span>
+      <span class="fn-step">유동성 <b>{{ "{:,}".format(funnel.liquidity) }}</b></span>
+      <span class="fn-arrow">→</span>
+      <span class="fn-step">시총 <b>{{ "{:,}".format(funnel.market_cap) }}</b></span>
+      <span class="fn-arrow">→</span>
+      <span class="fn-step fn-key">돌파 <b>{{ "{:,}".format(funnel.breakout) }}</b></span>
+      <span class="fn-arrow">→</span>
+      <span class="fn-step fn-key">주도주(RS) <b>{{ "{:,}".format(funnel.rs) }}</b></span>
+    </div>
+    {% endif %}
+
     {% if signals %}
     {% for s in signals %}
     <div class="signal-card">
@@ -765,21 +820,41 @@ footer {
     <div class="no-signals">
       <div class="no-signals-icon">👀</div>
       <div class="no-signals-title">오늘은 관망입니다</div>
-      <div class="no-signals-desc">돌파 스캔 조건을 충족하는 종목이 없습니다.<br>시장이 조건을 만들 때까지 기다립니다.</div>
+      <div class="no-signals-desc">
+        {% if funnel and funnel.breakout > 0 %}
+        돌파 종목은 <b>{{ funnel.breakout }}개</b> 나왔지만 상대강도(RS) 상위 20%에 든 종목이 없습니다.<br>
+        돌파는 있으나 <b>시장 주도주가 아닌</b> 국면입니다.
+        {% elif funnel %}
+        52주 신고가를 대량 거래로 돌파한 종목 자체가 없습니다.<br>
+        시장 전반이 <b>돌파를 만들지 못하는</b> 관망·조정 국면입니다.
+        {% else %}
+        돌파 스캔 조건을 충족하는 종목이 없습니다.<br>시장이 조건을 만들 때까지 기다립니다.
+        {% endif %}
+      </div>
     </div>
     {% endif %}
   </section>
 
   <!-- 성과 추적 -->
-  {% if perf_rows %}
+  {% if perf_rows or perf_summary %}
   <section>
     <h2>성과 추적 <small style="font-weight:400;color:var(--text3);">최근 30일 신호 · {{ perf_rows | length }}건</small><button class="info-btn" type="button" onclick="toggleInfo(this)" aria-label="성과 추적 설명 보기">ⓘ</button></h2>
     <div class="info-pop">
       <strong>성과 추적이란?</strong><br>
       과거에 잡힌 신호 종목이 <b>신호일 종가 대비 현재 어떤 성과</b>를 내고 있는지 추적합니다.
-      수익률이 <b>-8%(손절선)</b> 이하로 내려가면 '손절이탈'로 표시됩니다.<br>
+      채택 전략과 동일하게, 종가가 <b>저항선 아래로 마감</b>하면 '청산'으로 보고 그 종가로 성과를 확정합니다(그 전까지는 '진행중').<br>
       <span style="color:var(--text3);">※ 신호일 종가를 진입가로 가정한 참고 지표이며, 실제 매매 성과와는 다를 수 있습니다.</span>
     </div>
+    {% if perf_summary %}
+    <div class="perf-summary" title="최근 {{ perf_summary.window_days }}일 신호 중 청산 완료분 기준">
+      <span class="ps-item">승률 <b>{{ "%.0f" | format(perf_summary.win_rate) }}%</b></span>
+      <span class="ps-item {% if perf_summary.avg_return >= 0 %}up{% else %}down{% endif %}">평균수익률 <b>{{ "%+.2f" | format(perf_summary.avg_return) }}%</b></span>
+      <span class="ps-item">평균보유 <b>{{ "%.1f" | format(perf_summary.avg_days) }}일</b></span>
+      <span class="ps-item">청산 <b>{{ perf_summary.n_closed }}</b>건 · 진행중 <b>{{ perf_summary.n_open }}</b>건</span>
+      <span class="ps-item" style="color:var(--text3);">최근 {{ perf_summary.window_days }}일</span>
+    </div>
+    {% endif %}
+    {% if perf_rows %}
     <div class="perf-wrap">
       <table class="perf-table">
         <thead>
@@ -794,12 +869,13 @@ footer {
             <td>{{ "{:,.0f}".format(r.current) }}</td>
             <td class="{% if r.return_pct >= 0 %}up{% else %}down{% endif %}">{{ "%+.1f" | format(r.return_pct) }}%</td>
             <td>{{ r.days_held }}일</td>
-            <td>{% if r.status == '손절이탈' %}⚠️ {% endif %}{{ r.status }}</td>
+            <td>{% if r.status == '청산' %}🏁 {% endif %}{{ r.status }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    {% endif %}
   </section>
   {% endif %}
 

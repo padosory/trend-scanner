@@ -33,14 +33,31 @@ class StockSignal:
     return_60d: float
 
 
-def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp]:
+@dataclass
+class ScanFunnel:
+    """스캔 각 단계에서 살아남은 종목 수 (0개일 때 '왜'를 설명하기 위한 계측).
+
+    유동성·시총은 STEP2/RS와 순서를 바꾸기 어려운 전제 필터라 앞에 두고,
+    시장 국면 판단에 가장 유용한 마지막 두 단계(breakout, rs)를 뒤에 둔다.
+    """
+    universe: int      # 유니버스 전체 종목 수
+    data_ok: int       # 지표 계산에 충분한 데이터 확보
+    traded: int        # effective_date에 실제 거래된 종목
+    liquidity: int     # 20일 평균 거래대금 통과
+    market_cap: int    # 시가총액 통과
+    breakout: int      # STEP2 돌파 통과
+    rs: int            # RS 게이트 통과 (= 최종 신호 수)
+
+
+def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel]:
     """STEP2+RS 스캔 실행.
 
     Args:
         target_date: YYYYMMDD 문자열 (스캔 대상 날짜)
 
     Returns:
-        (signals, effective_date) — effective_date는 실제 데이터가 있는 마지막 거래일
+        (signals, effective_date, funnel) — effective_date는 실제 데이터가 있는
+        마지막 거래일, funnel은 단계별 생존 종목 수
     """
     target_ts = pd.Timestamp(target_date)
     start = (target_ts - pd.DateOffset(days=_OHLCV_HISTORY_DAYS)).strftime("%Y%m%d")
@@ -65,7 +82,7 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp]:
 
     if not ticker_data:
         logger.warning("유효 데이터 없음 — 휴장일이거나 데이터 문제")
-        return [], target_ts
+        return [], target_ts, ScanFunnel(len(tickers), 0, 0, 0, 0, 0, 0)
 
     # 실제 스캔 날짜: 타겟 이하 데이터가 가장 많은 거래일
     effective_date: pd.Timestamp = max(df.index[-1] for df in ticker_data.values())
@@ -78,31 +95,38 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp]:
     if effective_date not in rs_pct_df.index:
         available = rs_pct_df.index[rs_pct_df.index <= effective_date]
         if available.empty:
-            return [], effective_date
+            return [], effective_date, ScanFunnel(len(tickers), len(ticker_data), 0, 0, 0, 0, 0)
         effective_date = available[-1]
 
     rs_pct_row = rs_pct_df.loc[effective_date]
     ret_row = returns_60d.loc[effective_date]
 
+    # 단계별 생존 카운터
+    n_traded = n_liquidity = n_market_cap = n_breakout = 0
+
     signals: list[StockSignal] = []
     for ticker, df in ticker_data.items():
         if df.index[-1] != effective_date:
             continue
+        n_traded += 1
         row = df.iloc[-1]
 
         # 유동성 필터
         avg_tv = row.get("avg_trading_value20", float("nan"))
         if pd.isna(avg_tv) or avg_tv < config.MIN_AVG_TRADING_VALUE:
             continue
+        n_liquidity += 1
 
         # 시가총액 필터
         mkt_cap = estimate_market_cap(ticker, float(row["close"]))
         if mkt_cap is not None and mkt_cap < config.MIN_MARKET_CAP:
             continue
+        n_market_cap += 1
 
         # STEP2 돌파 스캔
         if not breakout_scanner.passes(row):
             continue
+        n_breakout += 1
 
         # RS 퍼센타일 게이트
         pct = rs_pct_row.get(ticker, float("nan"))
@@ -125,5 +149,20 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp]:
         )
 
     signals.sort(key=lambda s: s.rs_percentile, reverse=True)
+
+    funnel = ScanFunnel(
+        universe=len(tickers),
+        data_ok=len(ticker_data),
+        traded=n_traded,
+        liquidity=n_liquidity,
+        market_cap=n_market_cap,
+        breakout=n_breakout,
+        rs=len(signals),
+    )
+    logger.info(
+        "스캔 깔때기: 유니버스 %d → 데이터 %d → 거래 %d → 유동성 %d → 시총 %d → 돌파 %d → RS %d",
+        funnel.universe, funnel.data_ok, funnel.traded, funnel.liquidity,
+        funnel.market_cap, funnel.breakout, funnel.rs,
+    )
     logger.info("STEP2+RS 신호: %d개 (스캔일: %s)", len(signals), effective_date.strftime("%Y-%m-%d"))
-    return signals, effective_date
+    return signals, effective_date, funnel

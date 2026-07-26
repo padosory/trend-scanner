@@ -29,7 +29,7 @@ def main() -> None:
 
     # ── 1. 주식 STEP2+RS 스캔 ──────────────────────────────────────────────
     from collectors.stocks import scan as stock_scan
-    signals, effective_date = stock_scan(target_date)
+    signals, effective_date, funnel = stock_scan(target_date)
 
     # ── 2. 종목명 맵 ────────────────────────────────────────────────────────
     import FinanceDataReader as fdr
@@ -104,18 +104,23 @@ def main() -> None:
     import signal_tracker
     signal_tracker.record(signals, effective_date, name_map)
 
-    _price_cache: dict[str, float | None] = {}
+    # 추적기는 저항선 재이탈(채택 전략 청산)을 판정하려면 resistance_60까지 필요하므로
+    # 종가만이 아니라 지표가 적용된 OHLCV DataFrame을 넘긴다. 저항선 계산에 충분한
+    # 과거 구간(약 300일)을 확보해 최근 90일 신호까지 정상 평가되게 한다.
+    track_start = (effective_date - pd.DateOffset(days=300)).strftime("%Y%m%d")
+    _ohlcv_cache: dict[str, "pd.DataFrame | None"] = {}
 
-    def _price_lookup(ticker: str) -> "float | None":
-        if ticker not in _price_cache:
+    def _ohlcv_lookup(ticker: str) -> "pd.DataFrame | None":
+        if ticker not in _ohlcv_cache:
             try:
-                df = fetch_ohlcv(ticker, chart_start, chart_end)
-                _price_cache[ticker] = float(df["Close"].iloc[-1])
+                df = fetch_ohlcv(ticker, track_start, chart_end)
+                _ohlcv_cache[ticker] = add_indicators(df)
             except Exception:  # noqa: BLE001
-                _price_cache[ticker] = None
-        return _price_cache[ticker]
+                _ohlcv_cache[ticker] = None
+        return _ohlcv_cache[ticker]
 
-    perf_rows = signal_tracker.evaluate(effective_date, _price_lookup, lookback_days=30)
+    perf_rows = signal_tracker.evaluate(effective_date, _ohlcv_lookup, lookback_days=30)
+    perf_summary = signal_tracker.summarize(effective_date, _ohlcv_lookup, window_days=90)
 
     # ── 7. 리포트 빌드 ────────────────────────────────────────────────────────
     from report_builder.builder import build as build_report
@@ -132,6 +137,8 @@ def main() -> None:
         charts=charts,
         dart_data=dart_data,
         perf_rows=perf_rows,
+        perf_summary=perf_summary,
+        funnel=funnel,
     )
     logger.info("리포트 완료: %s", out_path)
 
@@ -150,6 +157,8 @@ def main() -> None:
             report_url=report_url,
             news_summary=kr_summary,
             top_tickers=[s.ticker for s in signals],
+            funnel=funnel,
+            perf_summary=perf_summary,
         )
 
     logger.info("=== 완료 ===")
