@@ -28,7 +28,9 @@ REQUEST_DELAY_SEC = 0.3
 FETCH_TIMEOUT_SEC = 20   # 종목당 pykrx 조회 최대 대기(초). 초과 시 스킵 — KRX 스로틀 시
                          # 한 종목이 실행을 수 분씩 잡아 전체가 몇 시간 가는 것을 방지.
 _LISTING_CACHE_PATH = CACHE_DIR / "_listing.parquet"
-_CACHE_END_SLACK_DAYS = 5    # 요청 종료일이 휴장일(연말 등)이라 실제 거래 데이터가 살짝 못 미쳐도 캐시 인정
+_CACHE_END_SLACK_DAYS = 2    # 요청 종료일과 캐시 마지막일 허용 간격(달력일). 주말 정도만 관용.
+                             # refresh_latest()가 캐시를 최신 거래일까지 미리 채워주므로
+                             # 낮아도 대량 재조회를 유발하지 않고, staleness만 줄인다.
 _CACHE_START_SLACK_DAYS = 7  # 요청 시작일이 공휴일/주말이면 실제 첫 거래일이 며칠 뒤일 수 있음 (근로자의날·설·추석 등)
 
 _listing_df: pd.DataFrame | None = None
