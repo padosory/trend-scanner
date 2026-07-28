@@ -4,7 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>마켓 대시보드 — {{ scan_date }}</title>
-<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<!-- Plotly는 head에서 동기 로드하지 않는다. 전체 번들은 gzip 1.1MB(원본 3.6MB)로
+     페이지(gzip ~46KB)의 24배라, 차트를 한 번도 안 펼치는 날에도 렌더 블로킹 비용을
+     전부 물었다. → 첫 차트를 펼치는 순간 loadPlotly()가 주입하고, 번들도 캔들·바·
+     스캐터만 든 finance 빌드(gzip 370KB)로 줄였다. preconnect로 첫 클릭의 DNS/TLS
+     왕복만 미리 끊어둔다. -->
+<link rel="preconnect" href="https://cdn.plot.ly" crossorigin>
 <style>
 :root {
   --bg:        #f0f2f5;
@@ -585,6 +590,14 @@ details.collapse .news-list { margin-top: 0; }
 .chart-box { display: none; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
 .chart-box.open { display: block; }
 .lazy-chart { width: 100%; min-height: 60px; }
+.lazy-chart.chart-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  font-size: 0.82rem;
+  color: var(--text3);
+}
 
 /* 표 안 차트 행 */
 tr.chart-row { display: none; }
@@ -1095,16 +1108,41 @@ function toggleSpark(card) {
   card.classList.toggle('open');
 }
 
-// 차트 lazy 렌더 — 펼치는 순간에만 Plotly.newPlot (초기 로드 가볍게)
+// Plotly 지연 로드 — 첫 차트를 펼치는 순간 1회만 주입한다.
+// 여러 종목을 동시에 펼쳐도 Promise 하나를 공유해 중복 다운로드가 없다.
+const PLOTLY_SRC = 'https://cdn.plot.ly/plotly-finance-2.32.0.min.js';
+let plotlyPromise = null;
+function loadPlotly() {
+  if (typeof Plotly !== 'undefined') return Promise.resolve();
+  if (!plotlyPromise) {
+    plotlyPromise = new Promise(function (resolve, reject) {
+      const s = document.createElement('script');
+      s.src = PLOTLY_SRC;
+      s.onload = resolve;
+      s.onerror = function () { plotlyPromise = null; reject(new Error('plotly load failed')); };
+      document.head.appendChild(s);
+    });
+  }
+  return plotlyPromise;
+}
+
+// 차트 lazy 렌더 — 펼치는 순간에만 라이브러리 로드 + Plotly.newPlot
 function renderLazyChart(el) {
   if (!el || el.dataset.rendered) return;
   const src = document.getElementById(el.dataset.chartId);
-  if (!src || typeof Plotly === 'undefined') return;
-  try {
+  if (!src) { el.classList.add('chart-msg'); el.textContent = '차트 데이터 없음'; return; }
+  el.dataset.rendered = '1';   // 로드 대기 중 다시 눌러도 중복 렌더되지 않게 선점
+  el.classList.add('chart-msg');
+  el.textContent = '차트 불러오는 중…';
+  loadPlotly().then(function () {
     const spec = JSON.parse(src.textContent);
+    el.classList.remove('chart-msg');
+    el.textContent = '';
     Plotly.newPlot(el, spec.data, spec.layout, {displayModeBar: false, responsive: true});
-    el.dataset.rendered = '1';
-  } catch (e) { /* 렌더 실패 무시 */ }
+  }).catch(function () {
+    el.dataset.rendered = '';  // 네트워크 실패 등 → 다시 눌러 재시도 가능
+    el.textContent = '차트를 불러오지 못했습니다. 다시 눌러주세요.';
+  });
 }
 function toggleChart(btn) {           // 신호 카드용
   const box = btn.nextElementSibling;
