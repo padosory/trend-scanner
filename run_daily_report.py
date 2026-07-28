@@ -24,7 +24,13 @@ def main() -> None:
     parser.add_argument("--skip-telegram", action="store_true", help="Telegram 알림 건너뜀")
     args = parser.parse_args()
 
-    target_date = args.date or (pd.Timestamp.now() - pd.Timedelta(days=1)).strftime("%Y%m%d")
+    # '어제'는 KST 기준. CI 러너는 UTC라 naive now()를 쓰면 21:30 UTC(=KST 익일 06:30)
+    # 실행에서 target이 하루 더 밀려(예: 월 21:30 UTC → 일요일) 직전 거래일 데이터를
+    # 통째로 잘라내고 그 전 거래일 리포트를 내보낸다.
+    import config
+    target_date = args.date or (
+        pd.Timestamp.now(tz=config.MARKET_TZ) - pd.Timedelta(days=1)
+    ).strftime("%Y%m%d")
     logger.info("=== 일별 스캔 시작 (타겟: %s) ===", target_date)
 
     # ── 1. 주식 STEP2+RS 스캔 ──────────────────────────────────────────────

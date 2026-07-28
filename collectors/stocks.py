@@ -121,7 +121,8 @@ def scan(target_date: str) -> tuple[list[StockSignal], pd.Timestamp, ScanFunnel,
 
     # 최근 날짜 스캔이면 FDR 전종목 스냅샷으로 캐시를 최신 거래일까지 1콜에 갱신.
     # (per-ticker 증분 수천 콜을 피해 staleness를 싸게 해소. 과거 날짜 백테스트엔 불필요)
-    if target_ts >= pd.Timestamp.now().normalize() - pd.Timedelta(days=7):
+    today_kst = pd.Timestamp.now(tz=config.MARKET_TZ).tz_localize(None).normalize()
+    if target_ts >= today_kst - pd.Timedelta(days=7):
         try:
             refresh_latest()
         except Exception as exc:  # noqa: BLE001

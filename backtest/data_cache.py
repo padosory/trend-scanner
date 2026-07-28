@@ -271,8 +271,10 @@ def refresh_latest() -> "pd.Timestamp | None":
     """
     anchor = "005930"  # 삼성전자 — 거래정지 없는 안정적 앵커
     try:
-        recent = (pd.Timestamp.now() - pd.Timedelta(days=15)).strftime("%Y%m%d")
-        today = pd.Timestamp.now().strftime("%Y%m%d")
+        # KST 기준 '오늘'. UTC 러너의 naive now()는 KST보다 하루 뒤라 최신 세션을 놓칠 수 있다.
+        now_kst = pd.Timestamp.now(tz="Asia/Seoul").tz_localize(None)
+        recent = (now_kst - pd.Timedelta(days=15)).strftime("%Y%m%d")
+        today = now_kst.strftime("%Y%m%d")
         a = _pykrx_ohlcv(anchor, recent, today)
     except Exception as exc:  # noqa: BLE001
         logger.info("스냅샷 갱신 스킵 — 앵커 조회 실패: %s", exc)

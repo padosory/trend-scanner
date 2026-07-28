@@ -3,6 +3,10 @@
 백테스트하면서 더 나은 값이 보이면 여기만 바꾸면 된다.
 """
 
+# 시장 기준 타임존. '오늘/어제'는 반드시 이 기준으로 계산한다.
+# (CI 러너는 UTC라 naive now()를 쓰면 KST보다 하루 뒤처져 스캔일이 밀린다)
+MARKET_TZ = "Asia/Seoul"
+
 # STEP1: 추세 필터 (미너비니 Trend Template 변형)
 MA_WINDOWS = (10, 20, 50, 150, 200)
 MA200_SLOPE_LOOKBACK = 20  # ma200가 n일 전보다 높으면 상승 기울기로 판단
