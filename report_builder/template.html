@@ -230,6 +230,13 @@ section h2 {
   margin-right: 6px;
 }
 
+.news-time {
+  font-size: 0.72rem;
+  color: var(--text3);
+  margin-right: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
 .news-list a { color: var(--text2); text-decoration: none; }
 .news-list a:hover { color: var(--accent); text-decoration: underline; }
 
@@ -773,7 +780,7 @@ footer {
 
   <!-- 국내 시황 (AI) -->
   <section>
-    <h2>국내 시황 <small style="font-weight:400;color:var(--text3);">(Gemini AI)</small></h2>
+    <h2>국내 시황 <small style="font-weight:400;color:var(--text3);">(Gemini AI{% if news_collected_at %} · 뉴스 {{ news_collected_at }} 수집{% endif %})</small></h2>
     <div class="news-summary">{{ kr_summary or "뉴스 요약 데이터 없음" }}</div>
 
     {% if kr_news_items %}
@@ -784,6 +791,7 @@ footer {
           {% for item in kr_news_items %}
           <li>
             <span class="news-source">{{ item.source }}</span>
+            {% if item.published_kst %}<span class="news-time">{{ item.published_kst }}</span>{% endif %}
             <a href="{{ item.link }}" target="_blank" rel="noopener">{{ item.title }}</a>
           </li>
           {% endfor %}
@@ -795,7 +803,7 @@ footer {
 
   <!-- 글로벌 시황 (AI) -->
   <section>
-    <h2>글로벌 시황 <small style="font-weight:400;color:var(--text3);">(Gemini AI · 번역 요약)</small></h2>
+    <h2>글로벌 시황 <small style="font-weight:400;color:var(--text3);">(Gemini AI · 번역 요약{% if news_collected_at %} · 뉴스 {{ news_collected_at }} 수집{% endif %})</small></h2>
     <div class="news-summary">{{ global_summary or "뉴스 요약 데이터 없음" }}</div>
 
     {% if global_news_items %}
@@ -806,6 +814,7 @@ footer {
           {% for item in global_news_items %}
           <li>
             <span class="news-source">{{ item.source }}</span>
+            {% if item.published_kst %}<span class="news-time">{{ item.published_kst }}</span>{% endif %}
             <a href="{{ item.link }}" target="_blank" rel="noopener">{{ item.title }}</a>
           </li>
           {% endfor %}

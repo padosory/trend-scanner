@@ -56,9 +56,14 @@ def main() -> None:
         macro_state.save({"date": today_str, "btc_dominance": macro.btc_dominance})
 
     # ── 4. 뉴스 수집 (국내: 네이버 API, 글로벌: Finnhub API) ──────────────────
-    from collectors.news import fetch_global, fetch_korea
+    # 뉴스 API는 과거 조회를 지원하지 않아 항상 '지금 최신'이 온다 → 스캔 기준일이
+    # 아니라 수집 시각에 묶인다. 리포트에 시각을 밝혀 오해를 막는다.
+    from collectors.news import fetch_global, fetch_korea, now_kst_label
     kr_news_items = fetch_korea()
     global_news_items = fetch_global()
+    news_collected_at = now_kst_label()
+    logger.info("뉴스 수집 시각(KST): %s — 스캔 기준일 %s",
+                news_collected_at, effective_date.strftime("%Y-%m-%d"))
 
     # ── 4-1. DART 공시 + 재무지표 ────────────────────────────────────────────
     dart_api_key = os.environ.get("DART_API_KEY", "")
@@ -147,6 +152,7 @@ def main() -> None:
         global_summary=global_summary,
         kr_news_items=kr_news_items,
         global_news_items=global_news_items,
+        news_collected_at=news_collected_at,
         name_map=name_map,
         comments=comments,
         charts=charts,
