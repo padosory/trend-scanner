@@ -20,6 +20,22 @@ RESISTANCE_WINDOW = 60          # 직전 60일 저항선 돌파
 # 52주 고가의 이 비율 이상~돌파(BREAKOUT_HIGH_PCT) 미만이면 '고가 근접' 후보
 WATCH_PROXIMITY_LOW = 0.90
 
+# 워치리스트 이탈 확정 기준 (watch_tracker) — 경계선 진동을 '이탈'로 세지 않기
+# 위한 히스테리시스. 없으면 90% 경계를 왕복하는 종목이 매일 이탈로 집계돼
+# 전일 대비 카운터가 노이즈로 전락한다.
+WATCH_EXIT_PROXIMITY = 0.88    # 고가근접이 이 아래로 떨어지면 1회로 즉시 이탈 확정
+WATCH_EXIT_GRACE_SCANS = 2     # 그 위(88~90%)는 N회 연속 밴드 밖일 때만 이탈 확정
+
+# 워치리스트 체류 '형태' 판정 (watch_tracker) — 같은 대기 5일이라도 변동폭이
+# 좁아지며 거래량이 마르는 수축형(매물 소화, 미너비니 VCP)과 변동폭이 줄지 않은
+# 정체형은 의미가 정반대다. 경과일수만으로는 이 둘이 구분되지 않는다.
+WATCH_SHAPE_MIN_DAYS = 3        # 체류가 이 미만이면 표본 부족 — 판정하지 않음
+WATCH_SHAPE_MAX_DAYS = 30       # 판정에 쓸 최대 체류 구간(오래된 구간은 희석)
+WATCH_SHAPE_BASELINE_DAYS = 20  # 체류 직전 비교 구간(이미 좁게 굳은 베이스 인식용)
+WATCH_COIL_RANGE_RATIO = 0.85   # 체류 후반 변동폭 < 전반 × 이 값 → 수축
+WATCH_COIL_TIGHT_RATIO = 0.75   # 체류 후반 변동폭 < 직전 베이스라인 × 이 값 → 수축
+WATCH_COIL_VOL_RATIO = 0.90     # 거래량도 이 배 미만으로 말라야 수축으로 인정
+
 # 워치리스트 (STEP2 통과 후 STEP3 재검사 대기)
 WATCHLIST_TTL_DAYS = 15
 

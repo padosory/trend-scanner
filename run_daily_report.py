@@ -101,9 +101,11 @@ def main() -> None:
     signal_tracker.record(signals, effective_date, name_map)
 
     chart_end = effective_date.strftime("%Y%m%d")
-    # 저항선 재이탈(성과추적 청산) 판정 + 차트에 쓸 지표 적용 OHLCV. 저항선 계산에
-    # 충분한 과거 구간(약 300일)을 확보해 최근 90일 신호까지 정상 평가되게 한다.
-    track_start = (effective_date - pd.DateOffset(days=300)).strftime("%Y%m%d")
+    # 저항선 재이탈(성과추적 청산) 판정 + 차트 + 워치 이탈사유 판정에 쓸 지표 적용
+    # OHLCV. 410일이면 52주 고가(rolling 252거래일)까지 유효해 워치 이탈 사유를
+    # 가려낼 수 있고, 스캔이 이미 420일로 채운 parquet 캐시 안에 들어와 추가
+    # 다운로드가 발생하지 않는다(캐시 시작 슬랙 7일).
+    track_start = (effective_date - pd.DateOffset(days=410)).strftime("%Y%m%d")
     _ohlcv_cache: dict[str, "pd.DataFrame | None"] = {}
 
     def _ohlcv_lookup(ticker: str) -> "pd.DataFrame | None":
@@ -117,6 +119,13 @@ def main() -> None:
 
     perf_rows = signal_tracker.evaluate(effective_date, _ohlcv_lookup, lookback_days=30)
     perf_summary = signal_tracker.summarize(effective_date, _ohlcv_lookup, window_days=90)
+
+    # ── 6-2. 워치리스트 전이 추적 (연속 등재일수 · 신규/유지/승격/이탈) ──────
+    # 워치리스트는 무상태로 재계산되므로 여기서 스캔 간 상태를 이어붙인다.
+    import watch_tracker
+    watch_delta = watch_tracker.update(
+        watchlist, signals, effective_date, name_map, _ohlcv_lookup
+    )
 
     # ── 6-1. 차트 JSON 생성 (신호·워치리스트·성과추적 종목, 클릭 시 lazy 렌더) ──────
     from report_builder.charts import make_chart_json
@@ -161,6 +170,7 @@ def main() -> None:
         perf_summary=perf_summary,
         funnel=funnel,
         watchlist=watchlist,
+        watch_delta=watch_delta,
     )
     logger.info("리포트 완료: %s", out_path)
 

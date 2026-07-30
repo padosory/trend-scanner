@@ -296,6 +296,17 @@ section h2 {
   letter-spacing: .02em;
 }
 
+/* 워치리스트에서 승격된 신호 — 워치리스트가 실제로 돌파를 예고했는지 검증용 */
+.promo-badge {
+  background: rgba(239,83,80,.14);
+  color: var(--up);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
 .signal-meta {
   font-size: 0.82rem;
   color: var(--text3);
@@ -559,6 +570,44 @@ details.collapse .news-list { margin-top: 0; }
 .w-reason-near { background: rgba(26,115,232,.12); color: var(--accent); }
 .w-reason-vol  { background: rgba(245,124,0,.14);  color: #e8890c; }
 [data-theme="dark"] .w-reason-vol { color: #f0a63a; }
+
+/* 연속 등재일수 — 수축 없이 길어질 때만 경고색 (수축은 오히려 강세 셋업) */
+.w-stale { color: #e8890c; font-weight: 600; }
+[data-theme="dark"] .w-stale { color: #f0a63a; }
+
+/* 체류 형태 — 같은 대기일수라도 수축과 정체는 의미가 정반대 */
+.w-shape {
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 9px;
+  cursor: help;
+}
+.w-shape-coil  { background: rgba(239,83,80,.13);   color: var(--up); }
+.w-shape-stall { background: rgba(128,128,128,.16); color: var(--text3); }
+
+/* 전일 대비 전이 요약 (접힌 상태에서도 보이게 summary 안에 둔다) */
+.w-delta {
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.w-delta .wd-promo { color: var(--up);   font-weight: 700; }
+.w-delta .wd-exit  { color: var(--down); font-weight: 600; border-bottom: 1px dotted currentColor; }
+.w-note {
+  font-size: 0.8rem;
+  color: var(--text2);
+  background: var(--card2, rgba(128,128,128,.08));
+  border-left: 3px solid var(--up);
+  border-radius: 4px;
+  padding: 7px 10px;
+  margin-bottom: 8px;
+}
 
 /* ── 네이버 링크 · 차트 토글(lazy) ── */
 .naver-link {
@@ -872,6 +921,10 @@ footer {
         <span class="stock-name">{{ name_map.get(s.ticker, "") }}</span>
         <a class="naver-link" href="https://finance.naver.com/item/main.naver?code={{ s.ticker }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="네이버 금융에서 보기">N↗</a>
         <span class="rs-badge" title="KRX 전체 종목 중 60일 수익률 상위 {{ "%.0f" | format((1 - s.rs_percentile) * 100) }}%">상대강도 {{ "%.0f" | format(s.rs_percentile * 100) }}%</span>
+        {% set promo_days = watch_delta.promoted_days.get(s.ticker) if watch_delta else none %}
+        {% if promo_days %}
+        <span class="promo-badge" title="'돌파 준비' 워치리스트에 {{ promo_days }}거래일 머문 뒤 오늘 돌파 신호로 승격됐습니다">워치 {{ promo_days }}일 → 돌파</span>
+        {% endif %}
         <span class="close-price">{{ "{:,.0f}원".format(s.close) }}</span>
       </div>
       <div class="signal-meta">
@@ -980,18 +1033,46 @@ footer {
 
     {% if watchlist %}
     <details class="collapse">
-      <summary>돌파 준비 종목 · {{ watchlist | length }}개 (참고용)</summary>
+      <summary>돌파 준비 종목 · {{ watchlist | length }}개 (참고용)
+        {% if watch_delta %}
+        <span class="w-delta">
+          {%- if watch_delta.baseline -%}
+          첫 집계 · 기준선
+          {%- else -%}
+          신규 {{ watch_delta.n_new }} · 유지 {{ watch_delta.n_kept }}
+          {%- if watch_delta.n_promoted %} · <span class="wd-promo" title="어제까지 준비 종목이었다가 오늘 돌파 신호로 올라섰습니다">승격 {{ watch_delta.n_promoted }}</span>{% endif -%}
+          {%- if watch_delta.n_exited %} · <span class="wd-exit" title="{{ watch_delta.exit_label }}">이탈 {{ watch_delta.n_exited }}</span>{% endif -%}
+          {%- endif -%}
+        </span>
+        {% endif %}
+      </summary>
       <div class="collapse-body">
         <p style="font-size:0.82rem;color:var(--text3);margin-bottom:8px;">
           아직 신호는 아니지만 돌파에 근접한 종목입니다. 매매 신호가 아니라
           <b>"시장이 어디서 준비 중인가"</b> 참고용입니다.<br>
           <span class="w-reason w-reason-near">고가 근접</span> 52주 신고가의 90~95% 구간(돌파 임박) ·
           <span class="w-reason w-reason-vol">거래량 미달</span> 가격은 돌파했으나 거래량이 기준(20일평균 1.5배) 미달
+          {% if watch_delta and not watch_delta.baseline %}<br>
+          <b>대기</b>는 연속 등재 거래일 수입니다. 대기가 길다는 것 자체는 방향을 말해주지 않아
+          체류 형태를 함께 표시합니다 —
+          <span class="w-shape w-shape-coil">수축</span> 변동폭이 좁아지고 거래량이 마르는 중(매물 소화·강세 셋업) ·
+          <span class="w-shape w-shape-stall">정체</span> 변동폭·거래량이 줄지 않은 채 문턱만 두드리는 중.
+          수축 없이 대기만 길어질 때 주황색으로 표시합니다.<br>
+          <b>승격/이탈</b>은 전 거래일 준비 종목의 결말이며, 90% 경계를 오가는 진동은
+          이탈로 세지 않습니다(2회 연속 이탈 또는 88% 이탈 시 확정).
+          {% endif %}
         </p>
+        {% if watch_delta and watch_delta.n_rs_fail %}
+        <p class="w-note">
+          ※ 오늘 이탈한 {{ watch_delta.n_exited }}개 중 <b>{{ watch_delta.n_rs_fail }}개는 돌파에 성공하고도</b>
+          상대강도(RS) 상위 20%에 들지 못해 신호에서 제외됐습니다 — 돌파는 나오지만
+          <b>주도주가 아닌</b> 국면의 신호입니다.
+        </p>
+        {% endif %}
         <div class="perf-wrap">
           <table class="watch-table">
             <thead>
-              <tr><th>종목</th><th>사유</th><th>현재가</th><th>고가근접</th><th>거래량</th><th>60일수익률</th><th></th></tr>
+              <tr><th>종목</th><th>사유</th><th>대기</th><th>현재가</th><th>고가근접</th><th>거래량</th><th>60일수익률</th><th></th></tr>
             </thead>
             <tbody>
               {% for w in watchlist[:20] %}
@@ -1000,6 +1081,11 @@ footer {
                   <a class="naver-link" href="https://finance.naver.com/item/main.naver?code={{ w.ticker }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="네이버 금융에서 보기">N↗</a>
                   <br><span class="w-ticker">{{ w.ticker }}</span></td>
                 <td class="w-reason-cell"><span class="w-reason {{ 'w-reason-vol' if w.reason == '거래량 미달' else 'w-reason-near' }}">{{ w.reason }}</span></td>
+                {% set wd = watch_delta.days.get(w.ticker, 1) if watch_delta else none %}
+                {% set sh = watch_delta.shapes.get(w.ticker) if watch_delta else none %}
+                {% set stale = wd and wd >= watch_delta.stale_days and not (sh and sh.coiling) %}
+                <td class="{{ 'w-stale' if stale else 'w-dim' }}"
+                    {% if stale %}title="{{ wd }}거래일째 수축 없이 문턱에 머무는 중 — 돌파 동력이 약해졌을 수 있습니다"{% endif %}>{% if wd %}{{ wd }}일{% else %}—{% endif %}{% if sh %}<span class="w-shape {{ 'w-shape-coil' if sh.coiling else 'w-shape-stall' }}" title="{{ sh.detail }}">{{ sh.label }}</span>{% endif %}</td>
                 <td>{{ "{:,.0f}".format(w.close) }}</td>
                 <td class="w-dim">{{ "%.1f" | format(w.proximity_pct) }}%</td>
                 <td class="w-dim">{% if w.vol_ratio == w.vol_ratio %}{{ "%.1f" | format(w.vol_ratio) }}×{% else %}—{% endif %}</td>
@@ -1007,7 +1093,7 @@ footer {
                 <td class="chart-cell">{% if charts.get(w.ticker) %}<button class="cbtn" onclick="toggleRowChart(this)" title="차트">📈</button>{% endif %}</td>
               </tr>
               {% if charts.get(w.ticker) %}
-              <tr class="chart-row"><td colspan="7"><div class="lazy-chart" data-chart-id="chart_{{ w.ticker }}"></div></td></tr>
+              <tr class="chart-row"><td colspan="8"><div class="lazy-chart" data-chart-id="chart_{{ w.ticker }}"></div></td></tr>
               {% endif %}
               {% endfor %}
             </tbody>

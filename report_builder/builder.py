@@ -28,6 +28,7 @@ def build(
     perf_summary=None,
     funnel=None,
     watchlist: list | None = None,
+    watch_delta=None,
     news_collected_at: str = "",
 ) -> Path:
     """HTML 리포트를 생성하고 저장 경로를 반환한다.
@@ -43,6 +44,8 @@ def build(
         name_map: {ticker: 종목명}
         comments: {ticker: AI 코멘트}
         charts: {ticker: plotly div HTML}
+        watch_delta: watch_tracker.WatchDelta | None — 워치리스트 전이
+            (연속 등재일수·신규/유지/승격/이탈). None이면 관련 표시를 생략
         news_collected_at: 뉴스 수집 시각 라벨(KST). 뉴스 API는 과거 조회가 안 돼
             항상 '실행 시점 최신'이므로 스캔 기준일과 다를 수 있음을 밝히는 용도
 
@@ -70,6 +73,7 @@ def build(
         perf_summary=perf_summary,
         funnel=funnel,
         watchlist=watchlist or [],
+        watch_delta=watch_delta,
         news_collected_at=news_collected_at,
     )
 
