@@ -30,12 +30,22 @@ FETCH_TIMEOUT_SEC = 20   # 종목당 pykrx 조회 최대 대기(초). 초과 시
 _LISTING_CACHE_PATH = CACHE_DIR / "_listing.parquet"
 _NAMES_CACHE_PATH = CACHE_DIR / "_names.parquet"
 _CACHE_END_SLACK_DAYS = 2    # 요청 종료일과 캐시 마지막일 허용 간격(달력일). 주말 정도만 관용.
-                             # refresh_latest()가 캐시를 최신 거래일까지 미리 채워주므로
-                             # 낮아도 대량 재조회를 유발하지 않고, staleness만 줄인다.
+                             # 과거 구간 조회에만 쓴다 — 최신 구간은 아래 거래일 기준으로
+                             # 엄격히 판정한다(_cache_is_fresh 참조).
 _CACHE_START_SLACK_DAYS = 7  # 요청 시작일이 공휴일/주말이면 실제 첫 거래일이 며칠 뒤일 수 있음 (근로자의날·설·추석 등)
+
+_ANCHOR_TICKER = "005930"    # 삼성전자 — 거래정지가 없어 '거래일' 판정 앵커로 쓴다
+_SETTLED_HOUR_KST = 16       # 이 시각(KST) 전이면 당일 봉을 미완성(장중)으로 본다
+_RECENT_REQUEST_DAYS = 7     # 요청 종료일이 오늘로부터 이 안이면 '최신 구간' 조회로 본다
 
 _listing_df: pd.DataFrame | None = None
 _shares_by_ticker: dict[str, float] | None = None
+
+# 앵커 조회 결과의 프로세스 캐시. _anchor_resolved는 '이미 시도했다'는 표시로,
+# 실패(None)도 기억해야 한다 — _cache_is_fresh()가 종목마다 호출되므로 실패를
+# 기억하지 않으면 KRX가 막혔을 때 2천 종목 × 타임아웃(20s)만큼 재시도한다.
+_anchor_cache: pd.DataFrame | None = None
+_anchor_resolved = False
 
 _COLUMN_MAP = {
     "시가": "open",
@@ -198,10 +208,75 @@ def _pykrx_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
     return df
 
 
+def _now_kst() -> pd.Timestamp:
+    return pd.Timestamp.now(tz="Asia/Seoul").tz_localize(None)
+
+
+def _anchor_history() -> "pd.DataFrame | None":
+    """앵커 종목의 최근 OHLCV — **완결된 거래일만** 남긴다 (프로세스 내 1회 조회).
+
+    장 마감 전에 조회하면 pykrx가 당일 미완성 봉을 마지막 행으로 준다. 그걸
+    '완결된 거래일'로 취급하면 장중 가격이 확정 종가처럼 캐시에 박히므로 잘라낸다.
+    """
+    global _anchor_cache, _anchor_resolved
+    if _anchor_resolved:
+        return _anchor_cache
+
+    _anchor_resolved = True  # 성공·실패 모두 1회로 확정 (종목별 재시도 방지)
+
+    now_kst = _now_kst()
+    recent = (now_kst - pd.Timedelta(days=15)).strftime("%Y%m%d")
+    try:
+        df = _pykrx_ohlcv(_ANCHOR_TICKER, recent, now_kst.strftime("%Y%m%d"))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("앵커(%s) 조회 실패 — 거래일 판정 불가, 신선도 검증을 건너뛴다: %s",
+                       _ANCHOR_TICKER, exc)
+        return None
+    if df is None or df.empty:
+        logger.warning("앵커(%s) 응답 없음 — 거래일 판정 불가", _ANCHOR_TICKER)
+        return None
+
+    if df.index[-1] == now_kst.normalize() and now_kst.hour < _SETTLED_HOUR_KST:
+        logger.info("장중 실행 감지 — 당일(%s) 미완성 봉 제외", df.index[-1].date())
+        df = df.iloc[:-1]
+    if df.empty:
+        return None
+
+    _anchor_cache = df
+    return df
+
+
+def get_last_trading_day() -> "pd.Timestamp | None":
+    """오늘(KST) 기준 마지막 '완결된' 거래일. 판정 불가 시 None.
+
+    데이터 신선도의 기준선이다. 캐시 최신일과 '요청 종료일(달력일)'의 간격으로
+    신선도를 재면, 하루 뒤처진 캐시가 휴장 때문인지 갱신 실패 때문인지 구분되지
+    않는다 — 2026-08-26 거래일이 통째로 유실되고도 실행이 성공으로 끝난 직접 원인이다.
+    """
+    df = _anchor_history()
+    return None if df is None else df.index[-1]
+
+
+def _cache_is_fresh(cached: pd.DataFrame, end_ts: pd.Timestamp) -> bool:
+    """캐시가 요청 종료일 기준으로 최신인지.
+
+    최신 구간 조회(요청 종료일이 오늘 근처)면 실제 거래일 기준으로 엄격히 본다.
+    과거 구간 조회(백테스트)는 종료일이 휴장일일 수 있어 기존 슬랙 규칙을 쓴다 —
+    여기에 거래일 기준을 적용하면 매 실행마다 전 종목 재조회가 발생한다.
+    """
+    if cached.empty:
+        return False
+    if end_ts >= _now_kst().normalize() - pd.Timedelta(days=_RECENT_REQUEST_DAYS):
+        last_td = get_last_trading_day()
+        if last_td is not None and end_ts >= last_td:
+            return bool(cached.index.max() >= last_td)
+    return bool(end_ts - cached.index.max() <= pd.Timedelta(days=_CACHE_END_SLACK_DAYS))
+
+
 def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
     """start/end: YYYYMMDD. 캐시를 최대한 재사용하고, 끝만 부족하면 증분 조회한다.
 
-    - 캐시가 요청 구간을 (종료일 5일 슬랙 안에서) 덮으면 그대로 반환.
+    - 캐시가 요청 구간을 덮으면(최신 구간은 마지막 거래일까지 차 있어야) 그대로 반환.
     - 시작 구간은 덮지만 끝이 낡았으면 '마지막 캐시일 다음날~end'만 받아 병합
       (전체 재다운로드 대신 증분).
     - 캐시가 없거나 시작 구간이 부족하면 전체 조회.
@@ -222,8 +297,8 @@ def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
     if cached is not None and not cached.empty:
         covers_start = cached.index.min() <= start_ts + pd.Timedelta(days=_CACHE_START_SLACK_DAYS)
         if covers_start:
-            # 끝이 이미 최신(슬랙 안)이면 조회 없이 캐시 사용
-            if end_ts - cached.index.max() <= pd.Timedelta(days=_CACHE_END_SLACK_DAYS):
+            # 끝이 이미 최신이면 조회 없이 캐시 사용
+            if _cache_is_fresh(cached, end_ts):
                 return cached.loc[start_ts:end_ts]
             # 끝만 부족 → 마지막 캐시일 다음날부터만 증분 조회
             inc_start = (cached.index.max() + pd.Timedelta(days=1)).strftime("%Y%m%d")
@@ -263,23 +338,21 @@ def refresh_latest() -> "pd.Timestamp | None":
     안전장치:
       - FDR 스냅샷은 날짜 라벨이 없어 '최신 세션'만 준다. 앵커 종목(삼성전자)을
         pykrx per-ticker로 조회해 최신 거래일(snap_date)·직전 거래일(prev_date)·
-        종가를 확정하고, FDR의 앵커 종가가 일치할 때만(장중/불일치면 스킵) 반영.
+        종가를 확정하고, FDR의 앵커 종가가 일치할 때만 반영한다.
+      - 앵커는 _anchor_history()가 당일 미완성 봉을 잘라낸 뒤의 값이다. 따라서
+        장중 실행이면 pykrx 앵커 종가(직전 세션)와 FDR 앵커 가격(실시간)이 어긋나
+        자동으로 스킵된다. 예전에는 양쪽 다 실시간 값이라 이 가드가 장중을 전혀
+        걸러내지 못했다.
       - 캐시가 '직전 거래일(prev_date)'까지 정확히 차 있는 종목에만 snap_date 1행을
-        붙인다(연속 보장). gap이 있는 종목은 건드리지 않고 per-ticker 조회에 맡긴다.
+        붙인다(연속 보장). 하루보다 더 밀린 종목은 이 경로로 못 메우므로 건드리지
+        않고 per-ticker 증분 조회에 맡긴다 — 그 종목 수를 로그로 남긴다.
 
     반환: 갱신 기준 최신 거래일(snap_date), 갱신 불가/스킵 시 None.
     """
-    anchor = "005930"  # 삼성전자 — 거래정지 없는 안정적 앵커
-    try:
-        # KST 기준 '오늘'. UTC 러너의 naive now()는 KST보다 하루 뒤라 최신 세션을 놓칠 수 있다.
-        now_kst = pd.Timestamp.now(tz="Asia/Seoul").tz_localize(None)
-        recent = (now_kst - pd.Timedelta(days=15)).strftime("%Y%m%d")
-        today = now_kst.strftime("%Y%m%d")
-        a = _pykrx_ohlcv(anchor, recent, today)
-    except Exception as exc:  # noqa: BLE001
-        logger.info("스냅샷 갱신 스킵 — 앵커 조회 실패: %s", exc)
-        return None
+    anchor = _ANCHOR_TICKER
+    a = _anchor_history()
     if a is None or len(a) < 2:
+        logger.info("스냅샷 갱신 스킵 — 앵커 거래일 판정 불가")
         return None
     snap_date, prev_date = a.index[-1], a.index[-2]
     anchor_close = int(round(float(a["close"].iloc[-1])))
@@ -293,7 +366,10 @@ def refresh_latest() -> "pd.Timestamp | None":
 
     arow = listing[listing["Code"] == anchor]
     if arow.empty or int(round(float(arow.iloc[0]["Close"]))) != anchor_close:
-        logger.info("스냅샷 갱신 스킵 — FDR가 최신 세션(%s)과 불일치(장중 등)", snap_date.date())
+        logger.info(
+            "스냅샷 갱신 스킵 — FDR 앵커가 최신 완결 세션(%s)과 불일치(장중 실행 등). "
+            "밀린 종목은 per-ticker 증분 조회로 메운다", snap_date.date(),
+        )
         return None
 
     # 전종목 OHLCV 스냅샷을 dict로
@@ -306,6 +382,7 @@ def refresh_latest() -> "pd.Timestamp | None":
             continue
 
     updated = 0
+    behind = 0   # prev_date보다 더 밀린 종목 — 스냅샷 1행으로는 못 메운다
     for p in CACHE_DIR.glob("*.parquet"):
         code = p.stem
         if code.startswith("_") or code not in snap:
@@ -315,6 +392,8 @@ def refresh_latest() -> "pd.Timestamp | None":
         except Exception:  # noqa: BLE001
             continue
         if df.empty or df.index.max() != prev_date:  # 이미 최신이거나 gap → 스킵
+            if not df.empty and df.index.max() < prev_date:
+                behind += 1
             continue
         o, h, l, c, v = snap[code]
         if any(pd.isna(x) for x in (o, h, l, c, v)):
@@ -327,4 +406,9 @@ def refresh_latest() -> "pd.Timestamp | None":
         updated += 1
 
     logger.info("FDR 스냅샷 갱신: %d종목 → %s (직전 %s)", updated, snap_date.date(), prev_date.date())
+    if behind:
+        logger.warning(
+            "캐시가 %s보다 더 밀린 종목 %d개 — 스냅샷으로 못 메움, per-ticker 증분 조회로 복구 예정"
+            " (실행이 길어질 수 있음)", prev_date.date(), behind,
+        )
     return snap_date

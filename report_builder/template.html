@@ -692,6 +692,14 @@ footer {
     <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">🌙 다크모드</button>
   </header>
 
+  {# 스캔 기준일이 마지막 거래일보다 뒤처졌을 때. 이 리포트가 '오늘 것'으로 읽히면 안 된다. #}
+  {% if stale_warning %}
+  <div style="margin:0 0 18px;padding:12px 14px;border:1px solid #ef5350;border-left-width:5px;border-radius:8px;background:rgba(239,83,80,0.10);font-size:0.92rem;line-height:1.55;">
+    <b>⚠️ 낡은 데이터 — 이 리포트는 최신이 아닙니다</b><br>
+    {{ stale_warning }}
+  </div>
+  {% endif %}
+
   <!-- 거시경제 -->
   {% if macro %}
   <section>
@@ -1113,24 +1121,25 @@ footer {
     <h2>성과 추적 <small style="font-weight:400;color:var(--text3);">최근 30일 신호 · {{ perf_rows | length }}건</small><button class="info-btn" type="button" onclick="toggleInfo(this)" aria-label="성과 추적 설명 보기">ⓘ</button></h2>
     <div class="info-pop">
       <strong>성과 추적이란?</strong><br>
-      과거에 잡힌 신호 종목이 <b>신호일 종가 대비 현재 어떤 성과</b>를 내고 있는지 추적합니다.
-      채택 전략과 동일하게, 종가가 <b>저항선 아래로 마감</b>하면 '청산'으로 보고 그 종가로 성과를 확정합니다(그 전까지는 '진행중').<br>
-      <span style="color:var(--text3);">※ 신호일 종가를 진입가로 가정한 참고 지표이며, 실제 매매 성과와는 다를 수 있습니다.</span>
+      과거에 잡힌 신호 종목이 <b>신호 다음 거래일 시가(T+1 시가)로 샀다면</b> 지금 어떤 성과인지 추적합니다.
+      신호는 종가가 확정돼야 나오므로 신호일 종가로는 살 수 없습니다 — 종가를 진입가로 잡으면 실제보다 좋게 나옵니다.<br>
+      채택 전략과 동일하게, 종가가 <b>저항선 아래로 마감</b>하면 '청산'으로 보고 그 종가로 성과를 확정합니다(그 전까지는 '진행중', T+1이 아직 안 온 당일 신호는 '진입대기').<br>
+      <span style="color:var(--text3);">※ 수수료·세금·슬리피지는 반영하지 않은 참고 지표이며, 실제 매매 성과와는 다를 수 있습니다.</span>
     </div>
     {% if perf_summary %}
-    <div class="perf-summary" title="최근 {{ perf_summary.window_days }}일 신호 중 청산 완료분 기준">
+    <div class="perf-summary" title="최근 {{ perf_summary.window_days }}일 신호 중 청산 완료분 기준 · 진입가는 T+1 시가">
       <span class="ps-item">승률 <b>{{ "%.0f" | format(perf_summary.win_rate) }}%</b></span>
       <span class="ps-item {% if perf_summary.avg_return >= 0 %}up{% else %}down{% endif %}">평균수익률 <b>{{ "%+.2f" | format(perf_summary.avg_return) }}%</b></span>
       <span class="ps-item">평균보유 <b>{{ "%.1f" | format(perf_summary.avg_days) }}일</b></span>
-      <span class="ps-item">청산 <b>{{ perf_summary.n_closed }}</b>건 · 진행중 <b>{{ perf_summary.n_open }}</b>건</span>
-      <span class="ps-item" style="color:var(--text3);">최근 {{ perf_summary.window_days }}일</span>
+      <span class="ps-item">청산 <b>{{ perf_summary.n_closed }}</b>건 · 진행중 <b>{{ perf_summary.n_open }}</b>건{% if perf_summary.n_pending %} · 진입대기 <b>{{ perf_summary.n_pending }}</b>건{% endif %}</span>
+      <span class="ps-item" style="color:var(--text3);">최근 {{ perf_summary.window_days }}일 · T+1 시가 진입</span>
     </div>
     {% endif %}
     {% if perf_rows %}
     <div class="perf-wrap">
       <table class="perf-table">
         <thead>
-          <tr><th>신호일</th><th>종목</th><th>진입가</th><th>현재가</th><th>수익률</th><th>경과</th><th>상태</th><th></th></tr>
+          <tr><th>신호일</th><th>종목</th><th title="신호 다음 거래일 시가">진입가<br><small style="font-weight:400;color:var(--text3);">T+1 시가</small></th><th>현재가</th><th>수익률</th><th>보유</th><th>상태</th><th></th></tr>
         </thead>
         <tbody>
           {% for r in perf_rows %}
@@ -1139,10 +1148,10 @@ footer {
             <td class="perf-name">{{ r.name }}
               <a class="naver-link" href="https://finance.naver.com/item/main.naver?code={{ r.ticker }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="네이버 금융에서 보기">N↗</a>
               <br><span class="perf-ticker">{{ r.ticker }}</span></td>
-            <td>{{ "{:,.0f}".format(r.entry) }}</td>
-            <td>{{ "{:,.0f}".format(r.current) }}</td>
-            <td class="{% if r.return_pct >= 0 %}up{% else %}down{% endif %}">{{ "%+.1f" | format(r.return_pct) }}%</td>
-            <td>{{ r.days_held }}일</td>
+            <td>{% if r.entry is none %}<span style="color:var(--text3);">—</span>{% else %}{{ "{:,.0f}".format(r.entry) }}{% endif %}</td>
+            <td>{% if r.current is none %}<span style="color:var(--text3);">—</span>{% else %}{{ "{:,.0f}".format(r.current) }}{% endif %}</td>
+            <td class="{% if r.return_pct is not none and r.return_pct < 0 %}down{% elif r.return_pct is not none %}up{% endif %}">{% if r.return_pct is none %}<span style="color:var(--text3);">—</span>{% else %}{{ "%+.1f" | format(r.return_pct) }}%{% endif %}</td>
+            <td>{{ r.held_label }}</td>
             <td>{% if r.status == '청산' %}🏁 {% endif %}{{ r.status }}</td>
             <td class="chart-cell">{% if charts.get(r.ticker) %}<button class="cbtn" onclick="toggleRowChart(this)" title="차트">📈</button>{% endif %}</td>
           </tr>

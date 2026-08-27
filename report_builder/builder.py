@@ -30,6 +30,7 @@ def build(
     watchlist: list | None = None,
     watch_delta=None,
     news_collected_at: str = "",
+    stale_warning: str = "",
 ) -> Path:
     """HTML 리포트를 생성하고 저장 경로를 반환한다.
 
@@ -48,6 +49,9 @@ def build(
             (연속 등재일수·신규/유지/승격/이탈). None이면 관련 표시를 생략
         news_collected_at: 뉴스 수집 시각 라벨(KST). 뉴스 API는 과거 조회가 안 돼
             항상 '실행 시점 최신'이므로 스캔 기준일과 다를 수 있음을 밝히는 용도
+        stale_warning: 스캔 기준일이 마지막 거래일보다 뒤처졌을 때의 경고 문구.
+            비어 있지 않으면 리포트 최상단에 배너로 띄운다 — 낡은 리포트가 최신인
+            것처럼 읽히는 상황을 화면에서 먼저 차단하는 용도
 
     Returns:
         저장된 리포트 파일 경로
@@ -75,6 +79,7 @@ def build(
         watchlist=watchlist or [],
         watch_delta=watch_delta,
         news_collected_at=news_collected_at,
+        stale_warning=stale_warning,
     )
 
     date_str = scan_date.strftime("%Y%m%d")

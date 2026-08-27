@@ -1,15 +1,21 @@
 """일별 스캔 → HTML 리포트 → Telegram 알림 메인 스크립트.
 
 사용법:
-  python run_daily_report.py                   # 어제 날짜 기준 스캔
-  python run_daily_report.py --date 20260625   # 특정 날짜 스캔
-  python run_daily_report.py --skip-ai         # Gemini 없이 실행
-  python run_daily_report.py --skip-telegram   # Telegram 알림 건너뜀
+  python run_daily_report.py                     # 어제 날짜 기준 스캔
+  python run_daily_report.py --date 20260625     # 특정 날짜 스캔
+  python run_daily_report.py --skip-ai           # Gemini 없이 실행
+  python run_daily_report.py --skip-telegram     # Telegram 알림 건너뜀
+  python run_daily_report.py --skip-if-current   # 이미 최신 거래일이 반영돼 있으면 아무것도 안 함
+
+종료 코드는 0(정상) 또는 1(스캔 기준일이 마지막 거래일보다 뒤처짐)이다. 1로 끝나면
+워크플로가 실패로 표시되고 Pages 배포가 건너뛰어져, 낡은 리포트가 최신인 척
+재발행되지 않는다.
 """
 
 import argparse
 import logging
 import os
+import sys
 
 import pandas as pd
 
@@ -17,11 +23,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description="daily trend scan + report + Telegram")
     parser.add_argument("--date", help="YYYYMMDD. 기본: 어제")
     parser.add_argument("--skip-ai", action="store_true", help="Gemini AI 분석 건너뜀")
     parser.add_argument("--skip-telegram", action="store_true", help="Telegram 알림 건너뜀")
+    parser.add_argument("--skip-if-current", action="store_true",
+                        help="마지막 거래일이 이미 반영돼 있으면 즉시 종료 (백업 스케줄용)")
     args = parser.parse_args()
 
     # '어제'는 KST 기준. CI 러너는 UTC라 naive now()를 쓰면 21:30 UTC(=KST 익일 06:30)
@@ -31,11 +39,43 @@ def main() -> None:
     target_date = args.date or (
         pd.Timestamp.now(tz=config.MARKET_TZ) - pd.Timedelta(days=1)
     ).strftime("%Y%m%d")
-    logger.info("=== 일별 스캔 시작 (타겟: %s) ===", target_date)
+
+    # 마지막 '완결된' 거래일. 스캔 결과가 여기 못 미치면 낡은 리포트다(§아래 검증).
+    from backtest.data_cache import get_last_trading_day
+    last_trading_day = get_last_trading_day()
+
+    if args.skip_if_current:
+        # 백업 스케줄용. 앞선 실행이 이미 마지막 거래일을 처리했으면 전체 스캔을
+        # 건너뛴다 — 중복 텔레그램·중복 AI 호출을 막는다.
+        import macro_state
+        done = macro_state.load().get("date")
+        if last_trading_day is not None and done == last_trading_day.strftime("%Y-%m-%d"):
+            logger.info("이미 최신(%s) 반영됨 — 스킵", done)
+            return 0
+        logger.info("최신 거래일(%s) 미반영(마지막 처리 %s) — 스캔 진행",
+                    last_trading_day.date() if last_trading_day is not None else "판정불가", done)
+
+    logger.info("=== 일별 스캔 시작 (타겟: %s, 마지막 거래일: %s) ===",
+                target_date,
+                last_trading_day.date() if last_trading_day is not None else "판정불가")
 
     # ── 1. 주식 STEP2+RS 스캔 ──────────────────────────────────────────────
     from collectors.stocks import scan as stock_scan
     signals, effective_date, funnel, watchlist = stock_scan(target_date)
+
+    # ── 1-1. 신선도 검증 ────────────────────────────────────────────────────
+    # 스캔이 마지막 거래일에 못 미치면 '어제 리포트를 오늘 것처럼' 다시 내보내는
+    # 상태다. 2026-08-06·08-07·08-26이 이렇게 조용히 유실됐다(실행은 전부 성공).
+    # 여기서 경고를 리포트·알림에 싣고, 마지막에 exit 1로 실패시킨다.
+    stale_warning = ""
+    if args.date is None and last_trading_day is not None and effective_date < last_trading_day:
+        missed = (last_trading_day - effective_date).days
+        stale_warning = (
+            f"데이터가 낡았습니다 — 스캔 기준일 {effective_date.strftime('%Y-%m-%d')}, "
+            f"마지막 거래일 {last_trading_day.strftime('%Y-%m-%d')} "
+            f"({missed}일 뒤처짐). 이 리포트는 최신 거래일을 반영하지 않습니다."
+        )
+        logger.error("신선도 검증 실패 — %s", stale_warning)
 
     # ── 2. 종목명 맵 (FDR 실패 시 캐시 폴백 — KRX 간헐 차단에도 리포트는 생성) ──
     from backtest.data_cache import get_name_map
@@ -171,6 +211,7 @@ def main() -> None:
         funnel=funnel,
         watchlist=watchlist,
         watch_delta=watch_delta,
+        stale_warning=stale_warning,
     )
     logger.info("리포트 완료: %s", out_path)
 
@@ -191,10 +232,16 @@ def main() -> None:
             top_tickers=[s.ticker for s in signals],
             funnel=funnel,
             perf_summary=perf_summary,
+            stale_warning=stale_warning,
         )
 
+    if stale_warning:
+        logger.error("=== 실패 종료 (신선도) — %s ===", stale_warning)
+        return 1
+
     logger.info("=== 완료 ===")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

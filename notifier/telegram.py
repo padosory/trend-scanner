@@ -48,11 +48,15 @@ def notify_report(
     top_tickers: list[str],
     funnel=None,
     perf_summary=None,
+    stale_warning: str = "",
 ) -> None:
     """일별 리포트 요약 알림 발송.
 
     funnel(collectors.stocks.ScanFunnel)·perf_summary(signal_tracker.PerfSummary)는
     선택 인자로, 있으면 각각 '왜 관망인지'와 누적 성과를 압축 한 줄로 덧붙인다.
+
+    stale_warning이 있으면 맨 앞에 경고를 붙인다. 폰으로 보는 사람이 날짜를 일일이
+    확인하지 않아도 낡은 리포트임을 바로 알게 하는 게 목적이라 맨 위에 둔다.
     """
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -65,6 +69,9 @@ def notify_report(
         ticker_str += f" 외 {len(top_tickers) - 5}개"
 
     lines = [f"<b>📊 마켓 대시보드 — {scan_date}</b>"]
+
+    if stale_warning:
+        lines.append(f"\n⚠️ <b>낡은 데이터</b>\n{stale_warning}\n")
 
     if signal_count == 0:
         if funnel is not None and funnel.breakout > 0:
@@ -82,7 +89,8 @@ def notify_report(
 
     if perf_summary is not None:
         lines.append(
-            f"\n📈 성과(최근 {perf_summary.window_days}일): 승률 <b>{perf_summary.win_rate:.0f}%</b>"
+            f"\n📈 성과(최근 {perf_summary.window_days}일 · T+1 시가 진입): "
+            f"승률 <b>{perf_summary.win_rate:.0f}%</b>"
             f" · 평균 <b>{perf_summary.avg_return:+.2f}%</b>"
             f" · 청산 {perf_summary.n_closed}건/진행중 {perf_summary.n_open}건"
         )

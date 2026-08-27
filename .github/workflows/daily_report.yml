@@ -2,7 +2,13 @@ name: Daily Trend Scan
 
 on:
   schedule:
-    - cron: "30 21 * * 1-5"   # 21:30 UTC = 06:30 KST, 월~금
+    # 21:00 UTC = 06:00 KST. GitHub의 스케줄 실행은 부하에 따라 수십 분~수 시간
+    # 밀린다(실측 최대 3.5시간). 09:00 KST 개장 전에 들어올 여유를 벌려고 30분 당겼다.
+    - cron: "0 21 * * 1-5"
+    # 백업 — 앞 실행이 아예 누락되거나 크게 밀렸을 때만 일한다. 이미 마지막
+    # 거래일이 반영돼 있으면 --skip-if-current로 즉시 종료하므로, 정상일엔
+    # 중복 스캔·중복 알림이 발생하지 않는다.
+    - cron: "0 23 * * 1-5"     # 23:00 UTC = 08:00 KST (여전히 개장 전)
   workflow_dispatch:            # 수동 실행 가능
 
 permissions:
@@ -66,7 +72,10 @@ jobs:
           ECOS_API_KEY:        ${{ secrets.ECOS_API_KEY }}
           # GitHub Pages URL: username.github.io/repo-name (Telegram 리포트 링크로 사용)
           GITHUB_PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
-        run: python run_daily_report.py
+        # 백업 스케줄(23:00 UTC)은 앞 실행이 실패·누락됐을 때만 실제로 스캔한다.
+        # 스캔 기준일이 마지막 거래일에 못 미치면 이 스텝이 exit 1로 끝나고,
+        # 아래 Pages 배포가 건너뛰어져 낡은 리포트가 최신인 척 재발행되지 않는다.
+        run: python run_daily_report.py ${{ github.event.schedule == '0 23 * * 1-5' && '--skip-if-current' || '' }}
 
       # ── 신호 히스토리 지속(repo 커밋) ────────────────────────────────────
       # 매 러너는 상태가 없으므로, 갱신된 히스토리 JSON을 repo에 커밋해 다음
