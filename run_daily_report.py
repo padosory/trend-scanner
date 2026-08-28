@@ -32,8 +32,8 @@ def main() -> int:
                         help="마지막 거래일이 이미 반영돼 있으면 즉시 종료 (백업 스케줄용)")
     args = parser.parse_args()
 
-    # '어제'는 KST 기준. CI 러너는 UTC라 naive now()를 쓰면 21:30 UTC(=KST 익일 06:30)
-    # 실행에서 target이 하루 더 밀려(예: 월 21:30 UTC → 일요일) 직전 거래일 데이터를
+    # '어제'는 KST 기준. CI 러너는 UTC라 naive now()를 쓰면 20:13 UTC(=KST 익일 05:13)
+    # 실행에서 target이 하루 더 밀려(예: 일 20:13 UTC → 토요일) 직전 거래일 데이터를
     # 통째로 잘라내고 그 전 거래일 리포트를 내보낸다.
     import config
     target_date = args.date or (
