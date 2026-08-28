@@ -1,7 +1,7 @@
 """일별 스캔 → HTML 리포트 → Telegram 알림 메인 스크립트.
 
 사용법:
-  python run_daily_report.py                     # 어제 날짜 기준 스캔
+  python run_daily_report.py                     # 마지막 거래일 기준 스캔
   python run_daily_report.py --date 20260625     # 특정 날짜 스캔
   python run_daily_report.py --skip-ai           # Gemini 없이 실행
   python run_daily_report.py --skip-telegram     # Telegram 알림 건너뜀
@@ -23,6 +23,24 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
+def _resolve_target_date(explicit, last_trading_day, now_kst) -> str:
+    """스캔 타겟 날짜(YYYYMMDD).
+
+    타겟은 '마지막으로 완결된 거래일'이다. 예전에는 KST 달력 기준 '어제'를 썼는데,
+    장 마감 후에 돌리면 오늘 장을 통째로 놓쳤다 — 2026-08-28 17:28 수동 실행이
+    타겟 8/27로 잡혀, 이미 끝난 8/28장이 리포트에 들어오지 않았다.
+
+    앵커 조회가 막혀 거래일을 못 구할 때만 예전 규칙으로 폴백한다. 이때 now_kst는
+    반드시 KST여야 한다 — CI 러너는 UTC라 naive now()를 쓰면 20:13 UTC(=KST 익일
+    05:13) 실행에서 하루 더 밀려 직전 거래일을 통째로 잘라낸다.
+    """
+    if explicit:
+        return explicit
+    if last_trading_day is not None:
+        return last_trading_day.strftime("%Y%m%d")
+    return (now_kst - pd.Timedelta(days=1)).strftime("%Y%m%d")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="daily trend scan + report + Telegram")
     parser.add_argument("--date", help="YYYYMMDD. 기본: 어제")
@@ -32,17 +50,15 @@ def main() -> int:
                         help="마지막 거래일이 이미 반영돼 있으면 즉시 종료 (백업 스케줄용)")
     args = parser.parse_args()
 
-    # '어제'는 KST 기준. CI 러너는 UTC라 naive now()를 쓰면 20:13 UTC(=KST 익일 05:13)
-    # 실행에서 target이 하루 더 밀려(예: 일 20:13 UTC → 토요일) 직전 거래일 데이터를
-    # 통째로 잘라내고 그 전 거래일 리포트를 내보낸다.
-    import config
-    target_date = args.date or (
-        pd.Timestamp.now(tz=config.MARKET_TZ) - pd.Timedelta(days=1)
-    ).strftime("%Y%m%d")
-
-    # 마지막 '완결된' 거래일. 스캔 결과가 여기 못 미치면 낡은 리포트다(§아래 검증).
+    # 마지막 '완결된' 거래일. 스캔 타겟이자 신선도 검증의 기준선이다(§아래 검증).
     from backtest.data_cache import get_last_trading_day
     last_trading_day = get_last_trading_day()
+
+    import config
+    target_date = _resolve_target_date(
+        args.date, last_trading_day,
+        pd.Timestamp.now(tz=config.MARKET_TZ).tz_localize(None),
+    )
 
     if args.skip_if_current:
         # 백업 스케줄용. 앞선 실행이 이미 마지막 거래일을 처리했으면 전체 스캔을

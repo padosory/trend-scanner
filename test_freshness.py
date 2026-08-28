@@ -137,12 +137,61 @@ def test_anchor_failure_not_retried() -> None:
           True)
 
 
+def test_after_close_run_repairs_cache() -> None:
+    """요청 종료일이 마지막 거래일보다 앞서도 신선도를 엄격히 봐야 한다.
+
+    2026-08-28 17:28 수동 실행(run #60) 재현. 타겟이 8/27인데 마지막 거래일은
+    8/28이라 `end_ts >= last_td`가 거짓이 되고, 구 로직은 엄격 판정을 건너뛰고
+    슬랙 규칙(8/27 - 8/25 = 2일 <= 2)으로 떨어져 3일 밀린 캐시를 통과시켰다.
+    그래서 재조회가 아예 안 일어났고 리포트가 8/25에 머물렀다.
+    """
+    print()
+    print("[5] 장 마감 후 실행 — 요청 종료일 < 마지막 거래일")
+    bars = pd.DataFrame(
+        {"open": [1, 2, 3, 4], "high": [1, 2, 3, 4], "low": [1, 2, 3, 4],
+         "close": [100, 200, 300, 400], "volume": [1, 1, 1, 1]},
+        index=pd.to_datetime(["2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28"]),
+    )
+    data_cache._pykrx_ohlcv = lambda *a, **k: bars.copy()
+    data_cache.get_last_trading_day = _REAL_LAST_TD
+    data_cache._now_kst = lambda: pd.Timestamp("2026-08-28 17:28")
+    _reset_anchor()
+
+    check("마지막 거래일(마감 후라 당일 포함)",
+          str(data_cache.get_last_trading_day().date()), "2026-08-28")
+    check("캐시 8/25 · 요청 8/27 (run #60 재현) — 재조회해야",
+          data_cache._cache_is_fresh(_cache_ending("2026-08-25"), pd.Timestamp("2026-08-27")),
+          False)
+    check("캐시 8/27 · 요청 8/27 — 재조회 불필요",
+          data_cache._cache_is_fresh(_cache_ending("2026-08-27"), pd.Timestamp("2026-08-27")),
+          True)
+
+
+def test_target_date_follows_trading_day() -> None:
+    """스캔 타겟은 달력상 '어제'가 아니라 마지막으로 완결된 거래일이어야 한다."""
+    print()
+    print("[6] 스캔 타겟 = 마지막 완결 거래일")
+    from run_daily_report import _resolve_target_date
+
+    fri = pd.Timestamp("2026-08-28")
+    check("장 마감 후(금 17:28) — 오늘 장을 반영",
+          _resolve_target_date(None, fri, pd.Timestamp("2026-08-28 17:28")), "20260828")
+    check("개장 전(월 05:13) — 직전 거래일",
+          _resolve_target_date(None, fri, pd.Timestamp("2026-08-31 05:13")), "20260828")
+    check("거래일 판정 불가 — 어제로 폴백",
+          _resolve_target_date(None, None, pd.Timestamp("2026-08-31 05:13")), "20260830")
+    check("--date 명시가 최우선",
+          _resolve_target_date("20260101", fri, pd.Timestamp("2026-08-31 05:13")), "20260101")
+
+
 def main() -> int:
     try:
         test_freshness_uses_real_trading_day()
         test_backtest_path_unchanged()
         test_intraday_bar_excluded()
         test_anchor_failure_not_retried()
+        test_after_close_run_repairs_cache()
+        test_target_date_follows_trading_day()
     finally:
         data_cache._pykrx_ohlcv = _REAL_PYKRX
         data_cache._now_kst = _REAL_NOW

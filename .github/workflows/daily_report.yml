@@ -31,7 +31,10 @@ concurrency:
 jobs:
   scan-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 45          # 호출당 타임아웃과 별개로, 잡이 폭주해도 45분에 강제 종료
+    # 캐시가 여러 거래일 밀리면 refresh_latest()의 1일치 스냅샷으로는 못 메우고
+    # per-ticker 증분 조회(순차, 2천여 종목)로 복구한다. 그 복구가 45분을 넘겨
+    # 죽는 일이 없도록 넉넉히 잡는다. public repo라 실행 시간 과금은 없다.
+    timeout-minutes: 90
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -57,8 +60,13 @@ jobs:
       # ── OHLCV parquet 캐시 ────────────────────────────────────────────────
       # 캐시 키에 run_id를 포함해 매 실행마다 새로 저장하고,
       # restore-keys로 직전 실행 캐시를 그대로 가져온다.
-      - name: Cache OHLCV parquet
-        uses: actions/cache@v4
+      # restore와 save를 나눈 이유: actions/cache의 자동 save는 잡이 실패하면
+      # 건너뛰어진다(2026-08-28 run #60에서 'Post Cache OHLCV parquet' skipped).
+      # 그러면 부분 복구한 캐시가 통째로 버려져 다음 실행이 같은 지점에서 다시
+      # 시작한다 — 낡은 캐시가 영영 안 풀린다. save를 if: always()로 분리해
+      # 실패해도 진척을 남기고, 여러 실행에 걸쳐서라도 수렴하게 한다.
+      - name: Restore OHLCV parquet
+        uses: actions/cache/restore@v4
         with:
           path: backtest/cache/
           key: ohlcv-${{ github.run_id }}
@@ -84,6 +92,13 @@ jobs:
         # 스캔 기준일이 마지막 거래일에 못 미치면 이 스텝이 exit 1로 끝나고,
         # 아래 Pages 배포가 건너뛰어져 낡은 리포트가 최신인 척 재발행되지 않는다.
         run: python run_daily_report.py ${{ github.event.schedule == '37 22 * * 0-4' && '--skip-if-current' || '' }}
+
+      - name: Save OHLCV parquet
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: backtest/cache/
+          key: ohlcv-${{ github.run_id }}
 
       # ── 신호 히스토리 지속(repo 커밋) ────────────────────────────────────
       # 매 러너는 상태가 없으므로, 갱신된 히스토리 JSON을 repo에 커밋해 다음

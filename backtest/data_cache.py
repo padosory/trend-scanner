@@ -257,6 +257,20 @@ def get_last_trading_day() -> "pd.Timestamp | None":
     return None if df is None else df.index[-1]
 
 
+def _last_trading_day_on_or_before(end_ts: pd.Timestamp) -> "pd.Timestamp | None":
+    """end_ts 이하의 마지막 거래일. 앵커 이력으로 판정하고, 불가하면 None.
+
+    신선도의 기준선은 '오늘의 마지막 거래일'이 아니라 '요청 종료일 이하의 마지막
+    거래일'이다. 둘은 장 마감 후 실행에서 갈라진다 — 2026-08-28 17:28 수동 실행이
+    그랬다(요청 종료일 8/27, 오늘의 마지막 거래일 8/28).
+    """
+    df = _anchor_history()
+    if df is None:
+        return None
+    idx = df.index[df.index <= end_ts]
+    return idx[-1] if len(idx) else None
+
+
 def _cache_is_fresh(cached: pd.DataFrame, end_ts: pd.Timestamp) -> bool:
     """캐시가 요청 종료일 기준으로 최신인지.
 
@@ -268,8 +282,15 @@ def _cache_is_fresh(cached: pd.DataFrame, end_ts: pd.Timestamp) -> bool:
         return False
     if end_ts >= _now_kst().normalize() - pd.Timedelta(days=_RECENT_REQUEST_DAYS):
         last_td = get_last_trading_day()
-        if last_td is not None and end_ts >= last_td:
-            return bool(cached.index.max() >= last_td)
+        if last_td is not None:
+            # end_ts가 마지막 거래일보다 앞설 수 있다 — 장 마감 후 실행이 그렇다.
+            # 예전에는 그 경우 엄격 판정을 통째로 건너뛰고 아래 슬랙 규칙으로
+            # 떨어져서, 3일 밀린 캐시가 '신선'으로 통과했다(2026-08-28 run #60:
+            # 요청 8/27 · 캐시 8/25 · 간격 2일 <= 슬랙 2 → 재조회 없이 통과).
+            expected = (last_td if end_ts >= last_td
+                        else _last_trading_day_on_or_before(end_ts))
+            if expected is not None:
+                return bool(cached.index.max() >= expected)
     return bool(end_ts - cached.index.max() <= pd.Timedelta(days=_CACHE_END_SLACK_DAYS))
 
 
