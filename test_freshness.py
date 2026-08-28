@@ -184,6 +184,147 @@ def test_target_date_follows_trading_day() -> None:
           _resolve_target_date("20260101", fri, pd.Timestamp("2026-08-31 05:13")), "20260101")
 
 
+def test_readjustment_detected() -> None:
+    """겹치는 구간의 종가가 어긋나면 소급조정으로 판정해야 한다."""
+    print()
+    print("[7] 소급조정 감지 — 겹침 구간 비교")
+    idx = pd.bdate_range("2026-07-24", periods=5)
+    old = pd.DataFrame({"close": [894.0] * 5}, index=idx)
+    same = pd.DataFrame({"close": [894.0] * 5}, index=idx)
+    new5 = pd.DataFrame({"close": [4470.0] * 5}, index=idx)          # 5:1 감자
+    half = pd.DataFrame({"close": [447.0] * 5}, index=idx)           # 2:1 분할
+    apart = pd.DataFrame({"close": [900.0] * 5}, index=pd.bdate_range("2026-08-10", periods=5))
+    halted = pd.DataFrame({"close": [0.0] * 5}, index=idx)
+
+    check("같은 계열 — 조정 아님", data_cache._series_readjusted(old, same), False)
+    check("5배 차이 (금호전기 재현) — 조정", data_cache._series_readjusted(old, new5), True)
+    check("0.5배 차이 (티앤엘 재현) — 조정", data_cache._series_readjusted(old, half), True)
+    check("겹치는 구간 없음 — 판정 보류", data_cache._series_readjusted(old, apart), False)
+    check("겹침이 전부 0값(거래정지) — 판정 보류",
+          data_cache._series_readjusted(old, halted), False)
+
+
+def test_snapshot_adjust_guard() -> None:
+    """FDR 스냅샷 1행은 하루 변동으로 설명되는 값일 때만 붙여야 한다."""
+    print()
+    print("[8] 스냅샷 갱신 가드 — 가격제한폭(±30%) 기준")
+    f = data_cache._is_plausible_daily_move
+    check("상한가 +30%", f(1000, 1300), True)
+    check("하한가 -30%", f(1000, 700), True)
+    check("2:1 액면분할 (0.5배)", f(1000, 500), False)
+    check("5:1 감자 (5배)", f(894, 4470), False)
+    check("전일 종가 0 — 판정 불가 시 관용", f(0, 4470), True)
+
+
+def test_fetch_refetches_on_readjustment() -> None:
+    """소급조정이 감지되면 그 종목만 전체 재조회해 계열을 통일해야 한다.
+
+    증분 병합만 하면 조정 전 행이 남아 계열에 불연속이 생긴다 — 배포된 리포트에서
+    금호전기가 2026-07-30 894 → 07-31 4,600으로 4.6배 튀어 있었다.
+    """
+    print()
+    print("[9] 소급조정 시 전체 재조회")
+    import tempfile, pathlib
+    real_dir = data_cache.CACHE_DIR
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    cols = ["open", "high", "low", "close", "volume"]
+
+    def frame(index, price):
+        return pd.DataFrame({c: [float(price)] * len(index) for c in cols}, index=index)
+
+    try:
+        data_cache.CACHE_DIR = tmp
+        data_cache._now_kst = lambda: pd.Timestamp("2026-08-28 17:28")
+        data_cache.get_last_trading_day = lambda: pd.Timestamp("2026-08-28")
+
+        cached_idx = pd.bdate_range("2026-03-02", "2026-07-30")
+        frame(cached_idx, 894).to_parquet(tmp / "001210.parquet")
+
+        truth = frame(pd.bdate_range("2026-03-02", "2026-08-28"), 4470)
+        calls = []
+
+        def fake(ticker, start, end):
+            calls.append((start, end))
+            return truth.loc[pd.Timestamp(start):pd.Timestamp(end)].copy()
+
+        data_cache._pykrx_ohlcv = fake
+        out = data_cache.fetch_ohlcv("001210", "20260302", "20260828")
+
+        check("pykrx 호출 횟수 (증분 + 전체)", len(calls), 2)
+        check("증분 조회가 캐시 마지막일보다 앞에서 시작", calls[0][0] <= "20260730", True)
+        check("반환 계열에 조정 전 값이 남지 않음", bool((out["close"] == 894).any()), False)
+        check("반환 계열 마지막 종가", float(out["close"].iloc[-1]), 4470.0)
+        saved = pd.read_parquet(tmp / "001210.parquet")
+        check("캐시도 새 계열로 덮어씀", bool((saved["close"] == 894).any()), False)
+
+        # 대조군 — 조정이 없으면 전체 재조회 없이 증분 병합
+        frame(cached_idx, 4470).to_parquet(tmp / "005930.parquet")
+        calls.clear()
+        out2 = data_cache.fetch_ohlcv("005930", "20260302", "20260828")
+        check("조정 없으면 호출 1회(증분만)", len(calls), 1)
+        check("증분 병합 후 마지막 종가", float(out2["close"].iloc[-1]), 4470.0)
+    finally:
+        data_cache.CACHE_DIR = real_dir
+
+
+def test_existing_break_repaired() -> None:
+    """캐시에 이미 박힌 불연속은 계열 전체를 훑어 한 번만 정리해야 한다.
+
+    겹침 검증은 단절이 최근 며칠 안에 있을 때만 걸린다. 실제로 문제가 된 셋은
+    전부 창 밖이었다(금호전기 07-31, 조아제약 08-26, 티앤엘 08-06).
+    """
+    print()
+    print("[10] 캐시 계열 불연속 — 감지와 1회 정리")
+    import tempfile, pathlib
+    cols = ["open", "high", "low", "close", "volume"]
+
+    def frame(index, prices):
+        return pd.DataFrame({c: [float(x) for x in prices] for c in cols}, index=index)
+
+    idx6 = pd.bdate_range("2026-07-24", periods=6)
+    check("연속 계열 — 단절 없음",
+          data_cache._series_has_break(frame(idx6, [1000, 1100, 1050, 1000, 980, 1010])), False)
+    check("상한가 연달아(+30%) — 오탐 없어야",
+          data_cache._series_has_break(frame(idx6, [1000, 1300, 1690, 2197, 2856, 3712])), False)
+    check("5배 단절 (금호전기 재현)",
+          data_cache._series_has_break(frame(idx6, [894, 894, 894, 4470, 4115, 3710])), True)
+    check("0.5배 단절 (티앤엘 재현)",
+          data_cache._series_has_break(frame(idx6, [65600, 64000, 32200, 31500, 32000, 31800])), True)
+    check("거래정지 0값 섞임 — 오탐 없어야",
+          data_cache._series_has_break(frame(idx6, [894, 0, 0, 894, 900, 890])), False)
+
+    real_dir = data_cache.CACHE_DIR
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        data_cache.CACHE_DIR = tmp
+        data_cache._now_kst = lambda: pd.Timestamp("2026-08-28 17:28")
+        data_cache.get_last_trading_day = lambda: pd.Timestamp("2026-08-28")
+        data_cache._refetched.clear()
+
+        idx = pd.bdate_range("2026-03-02", "2026-08-28")
+        broken = [894.0] * 100 + [4470.0] * (len(idx) - 100)   # 중간에 5배 단절
+        frame(idx, broken).to_parquet(tmp / "001210.parquet")
+
+        calls = []
+
+        def fake(ticker, start, end):
+            calls.append((start, end))
+            return frame(idx, broken).loc[pd.Timestamp(start):pd.Timestamp(end)].copy()
+
+        data_cache._pykrx_ohlcv = fake
+        data_cache.fetch_ohlcv("001210", "20260302", "20260828")
+        check("불연속 캐시 → 전체 재조회 1회", len(calls), 1)
+        check("재조회 이력에 기록", "001210" in data_cache._refetched, True)
+
+        # 재조회 후에도 단절이 남는 계열이라도 같은 프로세스에서 다시 받지 않는다
+        calls.clear()
+        data_cache.fetch_ohlcv("001210", "20260302", "20260828")
+        check("같은 프로세스에서 재시도 안 함", len(calls), 0)
+    finally:
+        data_cache.CACHE_DIR = real_dir
+        data_cache._refetched.clear()
+
+
 def main() -> int:
     try:
         test_freshness_uses_real_trading_day()
@@ -192,6 +333,10 @@ def main() -> int:
         test_anchor_failure_not_retried()
         test_after_close_run_repairs_cache()
         test_target_date_follows_trading_day()
+        test_readjustment_detected()
+        test_snapshot_adjust_guard()
+        test_fetch_refetches_on_readjustment()
+        test_existing_break_repaired()
     finally:
         data_cache._pykrx_ohlcv = _REAL_PYKRX
         data_cache._now_kst = _REAL_NOW
