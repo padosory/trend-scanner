@@ -131,6 +131,7 @@ class PerfSummary:
     n_all: int = 0                # 진입이 성립한 전체 신호 수
     avg_all: "float | None" = None     # 전체 평균 수익률 %(진행중은 미실현)
     median_all: "float | None" = None  # 전체 중간값 %
+    avg_days_all: "float | None" = None  # 전체 평균 보유일(진행중은 경과일)
 
     @property
     def tail_warning(self) -> bool:
@@ -446,9 +447,12 @@ def summarize(
     total = sum(returns)
     top3 = sum(returns[-3:])
     # 진행중까지 포함한 값. 청산분만 보면 느슨한 규칙이 구조적으로 불리해진다.
+    # 보유일수도 같은 편향을 받는다 — 가장 오래 들고 있는 건이 아직 진행중이라
+    # 청산분 평균만 보면 느슨한 규칙이 오히려 짧게 보인다.
     entered = [r for r in rows
                if r.status in (STATUS_CLOSED, STATUS_OPEN) and r.return_pct is not None]
     all_returns = [r.return_pct for r in entered]
+    all_days = [r.days_held for r in entered]
     return PerfSummary(
         n_closed=len(closed),
         n_open=n_open,
@@ -466,6 +470,7 @@ def summarize(
         n_all=len(all_returns),
         avg_all=(sum(all_returns) / len(all_returns)) if all_returns else None,
         median_all=float(pd.Series(all_returns).median()) if all_returns else None,
+        avg_days_all=(sum(all_days) / len(all_days)) if all_days else None,
     )
 
 

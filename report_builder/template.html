@@ -1207,7 +1207,7 @@ footer {
       <thead>
         <tr>
           <th>손절선 올리는 방식</th><th>청산</th><th>승률</th><th>평균</th><th>중간값</th><th>보유</th>
-          <th title="진행중인 신호의 미실현 손익까지 포함한 값. 느슨한 규칙은 이기는 건이 아직 진행중으로 남아 있어, 청산분만 비교하면 구조적으로 불리하게 보입니다.">전체(미실현 포함)</th>
+          <th title="진행중인 신호의 미실현 손익·경과일까지 포함한 값. 느슨한 규칙은 이기는 건과 오래 들고 있는 건이 진행중으로 남아 있어, 청산분만 비교하면 수익률도 보유기간도 구조적으로 불리하게 보입니다.">전체(미실현 포함)</th>
         </tr>
       </thead>
       <tbody>
@@ -1222,7 +1222,7 @@ footer {
           <td>
             {% if ps.avg_all is not none %}
               <span class="{% if ps.avg_all >= 0 %}up{% else %}down{% endif %}">{{ "%+.2f" | format(ps.avg_all) }}%</span>
-              <small>· 중간값 {{ "%+.2f" | format(ps.median_all) }}% · {{ ps.n_all }}건</small>
+              <small>· 중간값 {{ "%+.2f" | format(ps.median_all) }}%{% if ps.avg_days_all is not none %} · 보유 {{ "%.1f" | format(ps.avg_days_all) }}일{% endif %} · {{ ps.n_all }}건</small>
             {% else %}—{% endif %}
             {% if ps.closed_biased %}<br><small title="진행중 비중이 3할을 넘습니다. 느슨한 규칙은 손절선이 진입가 위로 올라가야 이익 청산이 나오는데 시간이 걸려, 초기에는 빨리 죽은 손실만 청산으로 잡힙니다. 왼쪽 청산분 수치를 그대로 비교하지 마세요.">⚠ 청산분 비교 주의</small>{% endif %}
           </td>
