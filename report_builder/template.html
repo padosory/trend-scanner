@@ -307,6 +307,63 @@ section h2 {
   white-space: nowrap;
 }
 
+/* 돌파폭이 큰 신호 = 다음날 진입 시 손절폭이 그만큼 벌어짐 (설계서 §7.9) */
+.chase-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+.chase-badge.warn  { background: rgba(255,167,38,.16); color: #f5a623; }
+.chase-badge.alert { background: rgba(239,83,80,.16);  color: var(--down); }
+
+.entry-guide {
+  font-size: 0.8rem;
+  color: var(--text2);
+  background: var(--surface2);
+  border-left: 3px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  line-height: 1.55;
+}
+.entry-guide.warn  { border-left-color: #f5a623; }
+.entry-guide.alert { border-left-color: var(--down); }
+.entry-guide b { color: var(--text); }
+
+/* 지수 60일선 국면 — 신호를 거르지 않고 맥락으로만 보여준다 (설계서 §7.11) */
+.regime-chip {
+  display: inline-block;
+  font-size: 0.78rem;
+  color: var(--text2);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px 12px;
+  margin-bottom: 12px;
+}
+
+/* 청산 규칙 3종 비교 — 하나로 갈아치우지 않고 나란히 기록한다 */
+.rule-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+.rule-table th, .rule-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+.rule-table th { color: var(--text3); font-weight: 600; font-size: 0.78rem; }
+.rule-table td:first-child, .rule-table th:first-child { text-align: left; white-space: normal; }
+.rule-table td small { color: var(--text3); font-size: 0.74rem; }
+.rule-table .up { color: var(--up); }
+.rule-table .down { color: var(--down); }
+.rule-table tr.is-current td { background: var(--surface2); }
+
 .signal-meta {
   font-size: 0.82rem;
   color: var(--text3);
@@ -921,6 +978,12 @@ footer {
     </div>
     {% endif %}
 
+    {% if regime %}
+    <div class="regime-chip" title="지수 60일선 국면입니다. 신호를 거르는 필터가 아니라 맥락 정보입니다 — 60일선 노출조절은 검증에서 코스닥 기준으로는 오히려 나빠져 사후 선택으로 판단했습니다(설계서 §7.11).">
+      국면 · {{ regime.label }} <span style="color:var(--text3);">(참고용 — 신호를 거르지 않습니다)</span>
+    </div>
+    {% endif %}
+
     {% if signals %}
     {% for s in signals %}
     <div class="signal-card">
@@ -935,12 +998,23 @@ footer {
         {% endif %}
         <span class="close-price">{{ "{:,.0f}원".format(s.close) }}</span>
       </div>
+      {% set bw = ((s.close - s.resistance_60) / s.close * 100) if s.resistance_60 else none %}
       <div class="signal-meta">
         <span>52주고가 {{ "{:,.0f}".format(s.high_52w) }}</span>
         <span>저항선 {{ "{:,.0f}".format(s.resistance_60) }}</span>
+        {% if bw is not none %}<span title="종가가 돌파한 저항선보다 얼마나 위에서 마감했나. 다음날 진입 시 손절폭이 대략 이만큼 됩니다">돌파폭 {{ "%+.1f" | format(bw) }}%</span>{% endif %}
         <span>60일수익률 {{ "%.1f" | format(s.return_60d * 100) }}%</span>
         <span>거래대금 {{ "{:,.0f}M".format(s.avg_trading_value20 / 1_000_000) }}</span>
+        {% if bw is not none and bw >= chase_alert %}<span class="chase-badge alert" title="종가 기준 돌파폭 {{ chase_alert }}% 초과 구간은 검증에서 중간값 -5.2%였습니다">추격 위험</span>
+        {% elif bw is not none and bw >= chase_warn %}<span class="chase-badge warn" title="종가 기준 돌파폭 {{ chase_warn }}% 초과 구간은 검증에서 중간값 -2.9%였습니다">추격 주의</span>{% endif %}
       </div>
+      {% if s.resistance_60 %}
+      <div class="entry-guide{% if bw is not none and bw >= chase_alert %} alert{% elif bw is not none and bw >= chase_warn %} warn{% endif %}">
+        진입 기준: 시가가 <b>{{ "{:,.0f}원".format(s.resistance_60) }}</b>(돌파한 저항선) 이상일 때만 매수 — 아래로 열리면 장중 회복 시 그 가격에.
+        <b>{{ "{:,.0f}원".format(s.resistance_60 * (1 + chase_warn / 100)) }}</b> 초과로 열리면 손절폭이 {{ chase_warn }}%를 넘어 추격 구간입니다.
+        {% if bw is not none and bw >= chase_warn %}<br>⚠ 이미 저항선보다 <b>{{ "%.0f" | format(bw) }}%</b> 위에서 마감 — 손절폭이 그만큼 벌어진 상태로 시작합니다.{% endif %}
+      </div>
+      {% endif %}
       {% if comments.get(s.ticker) %}
       <div class="ai-comment">💡 {{ comments.get(s.ticker) }}</div>
       {% endif %}
@@ -1121,17 +1195,54 @@ footer {
     <h2>성과 추적 <small style="font-weight:400;color:var(--text3);">최근 30일 신호 · {{ perf_rows | length }}건</small><button class="info-btn" type="button" onclick="toggleInfo(this)" aria-label="성과 추적 설명 보기">ⓘ</button></h2>
     <div class="info-pop">
       <strong>성과 추적이란?</strong><br>
-      과거에 잡힌 신호 종목이 <b>신호 다음 거래일 시가(T+1 시가)로 샀다면</b> 지금 어떤 성과인지 추적합니다.
-      신호는 종가가 확정돼야 나오므로 신호일 종가로는 살 수 없습니다 — 종가를 진입가로 잡으면 실제보다 좋게 나옵니다.<br>
-      채택 전략과 동일하게, 종가가 <b>저항선 아래로 마감</b>하면 '청산'으로 보고 그 종가로 성과를 확정합니다(그 전까지는 '진행중', T+1이 아직 안 온 당일 신호는 '진입대기').<br>
+      과거에 잡힌 신호 종목을 <b>돌파한 저항선 위에 매수스톱을 걸어 샀다면</b> 지금 어떤 성과인지 추적합니다.
+      다음 거래일 시가가 저항선 위면 시가에, 아래로 열렸다가 장중 회복하면 저항선 가격에 체결된 것으로 봅니다.
+      끝내 회복하지 못하면 <b>'미진입'</b>입니다 — 돌파 전략인데 저항선 아래에서 사면 진입하자마자 청산 조건을 충족하게 되므로 매수로 치지 않습니다.<br>
+      청산은 종가가 손절선 아래로 마감한 <b>다음 거래일 시가</b>입니다. 조건이 성립한 그 종가로 팔면 '종가를 미리 알고 판다'는 계산이 되어 실제보다 좋게 나옵니다.<br>
+      손절선을 올리는 방식은 <b>세 가지를 나란히</b> 기록합니다(아래 표). 어느 쪽이 맞는지 과거 데이터로는 판정하지 못했고, 앞으로 쌓이는 기록이 그대로 비교가 됩니다.<br>
       <span style="color:var(--text3);">※ 수수료·세금·슬리피지는 반영하지 않은 참고 지표이며, 실제 매매 성과와는 다를 수 있습니다.</span>
     </div>
+    {% if perf_summaries %}
+    <table class="rule-table">
+      <thead>
+        <tr>
+          <th>손절선 올리는 방식</th><th>청산</th><th>승률</th><th>평균</th><th>중간값</th><th>보유</th>
+          <th title="진행중인 신호의 미실현 손익까지 포함한 값. 느슨한 규칙은 이기는 건이 아직 진행중으로 남아 있어, 청산분만 비교하면 구조적으로 불리하게 보입니다.">전체(미실현 포함)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ps in perf_summaries %}
+        <tr class="{% if ps.rule_key == 'current' %}is-current{% endif %}">
+          <td><b>{{ ps.rule_label }}</b>{% if ps.rule_key == 'current' %} <small>(기존)</small>{% endif %}<br><small>{{ ps.rule_desc }}</small></td>
+          <td>{{ ps.n_closed }}건{% if ps.n_open %}<br><small>진행 {{ ps.n_open }}</small>{% endif %}</td>
+          <td>{{ "%.0f" | format(ps.win_rate) }}%</td>
+          <td class="{% if ps.avg_return >= 0 %}up{% else %}down{% endif %}">{{ "%+.2f" | format(ps.avg_return) }}%</td>
+          <td class="{% if ps.median_return >= 0 %}up{% else %}down{% endif %}">{{ "%+.2f" | format(ps.median_return) }}%</td>
+          <td>{{ "%.1f" | format(ps.avg_days) }}일</td>
+          <td>
+            {% if ps.avg_all is not none %}
+              <span class="{% if ps.avg_all >= 0 %}up{% else %}down{% endif %}">{{ "%+.2f" | format(ps.avg_all) }}%</span>
+              <small>· 중간값 {{ "%+.2f" | format(ps.median_all) }}% · {{ ps.n_all }}건</small>
+            {% else %}—{% endif %}
+            {% if ps.closed_biased %}<br><small title="진행중 비중이 3할을 넘습니다. 느슨한 규칙은 손절선이 진입가 위로 올라가야 이익 청산이 나오는데 시간이 걸려, 초기에는 빨리 죽은 손실만 청산으로 잡힙니다. 왼쪽 청산분 수치를 그대로 비교하지 마세요.">⚠ 청산분 비교 주의</small>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p style="font-size:0.78rem;color:var(--text3);margin:-6px 0 14px;">
+      아래 표 본문은 <b>기존 방식</b> 기준입니다. 셋 중 하나로 확정하지 않고 나란히 기록만 남깁니다.
+      {% set cur = perf_summaries | selectattr("rule_key", "equalto", "current") | first %}
+      {% if cur and cur.tail_warning %}상위 3건이 전체 수익의 {{ "%.0f" | format(cur.top3_share) }}%를 차지합니다 — 그 3건을 빼면 순손실입니다.{% endif %}
+    </p>
+    {% endif %}
     {% if perf_summary %}
     <div class="perf-summary" title="최근 {{ perf_summary.window_days }}일 신호 중 청산 완료분 기준 · 진입가는 T+1 시가">
       <span class="ps-item">승률 <b>{{ "%.0f" | format(perf_summary.win_rate) }}%</b></span>
       <span class="ps-item {% if perf_summary.avg_return >= 0 %}up{% else %}down{% endif %}">평균수익률 <b>{{ "%+.2f" | format(perf_summary.avg_return) }}%</b></span>
+      <span class="ps-item {% if perf_summary.median_return >= 0 %}up{% else %}down{% endif %}" title="평균은 소수의 대박에 끌려 올라갑니다. 전형적인 거래가 어땠는지는 중간값을 봐야 합니다.">중간값 <b>{{ "%+.2f" | format(perf_summary.median_return) }}%</b></span>
       <span class="ps-item">평균보유 <b>{{ "%.1f" | format(perf_summary.avg_days) }}일</b></span>
-      <span class="ps-item">청산 <b>{{ perf_summary.n_closed }}</b>건 · 진행중 <b>{{ perf_summary.n_open }}</b>건{% if perf_summary.n_pending %} · 진입대기 <b>{{ perf_summary.n_pending }}</b>건{% endif %}</span>
+      <span class="ps-item">청산 <b>{{ perf_summary.n_closed }}</b>건 · 진행중 <b>{{ perf_summary.n_open }}</b>건{% if perf_summary.n_pending %} · 진입대기 <b>{{ perf_summary.n_pending }}</b>건{% endif %}{% if perf_summary.n_noentry %} · 미진입 <b>{{ perf_summary.n_noentry }}</b>건{% endif %}</span>
       <span class="ps-item" style="color:var(--text3);">최근 {{ perf_summary.window_days }}일 · T+1 시가 진입</span>
     </div>
     {% endif %}
@@ -1139,7 +1250,7 @@ footer {
     <div class="perf-wrap">
       <table class="perf-table">
         <thead>
-          <tr><th>신호일</th><th>종목</th><th title="신호 다음 거래일 시가">진입가<br><small style="font-weight:400;color:var(--text3);">T+1 시가</small></th><th>현재가</th><th>수익률</th><th>보유</th><th>상태</th><th></th></tr>
+          <tr><th>신호일</th><th>종목</th><th title="돌파한 저항선 위 매수스톱 체결가">진입가<br><small style="font-weight:400;color:var(--text3);">역지정가</small></th><th title="(진입가 - 돌파한 저항선) / 진입가. 진입 시점의 초기 손절폭">손절폭</th><th>현재가</th><th>수익률</th><th>보유</th><th>상태</th><th></th></tr>
         </thead>
         <tbody>
           {% for r in perf_rows %}
@@ -1148,7 +1259,8 @@ footer {
             <td class="perf-name">{{ r.name }}
               <a class="naver-link" href="https://finance.naver.com/item/main.naver?code={{ r.ticker }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="네이버 금융에서 보기">N↗</a>
               <br><span class="perf-ticker">{{ r.ticker }}</span></td>
-            <td>{% if r.entry is none %}<span style="color:var(--text3);">—</span>{% else %}{{ "{:,.0f}".format(r.entry) }}{% endif %}</td>
+            <td>{% if r.entry is none %}<span style="color:var(--text3);">—</span>{% else %}{{ "{:,.0f}".format(r.entry) }}{% if r.entry_kind %}<br><small style="color:var(--text3);">{{ r.entry_kind }}</small>{% endif %}{% endif %}</td>
+            <td>{% if r.stop_dist_pct is none %}<span style="color:var(--text3);">—</span>{% else %}<span class="{{ 'chase-badge ' + r.chase_level if r.chase_level }}">{{ "%+.1f" | format(r.stop_dist_pct) }}%</span>{% endif %}</td>
             <td>{% if r.current is none %}<span style="color:var(--text3);">—</span>{% else %}{{ "{:,.0f}".format(r.current) }}{% endif %}</td>
             <td class="{% if r.return_pct is not none and r.return_pct < 0 %}down{% elif r.return_pct is not none %}up{% endif %}">{% if r.return_pct is none %}<span style="color:var(--text3);">—</span>{% else %}{{ "%+.1f" | format(r.return_pct) }}%{% endif %}</td>
             <td>{{ r.held_label }}</td>
@@ -1156,7 +1268,7 @@ footer {
             <td class="chart-cell">{% if charts.get(r.ticker) %}<button class="cbtn" onclick="toggleRowChart(this)" title="차트">📈</button>{% endif %}</td>
           </tr>
           {% if charts.get(r.ticker) %}
-          <tr class="chart-row"><td colspan="8"><div class="lazy-chart" data-chart-id="chart_{{ r.ticker }}"></div></td></tr>
+          <tr class="chart-row"><td colspan="9"><div class="lazy-chart" data-chart-id="chart_{{ r.ticker }}"></div></td></tr>
           {% endif %}
           {% endfor %}
         </tbody>
