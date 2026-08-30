@@ -6,6 +6,8 @@ from pathlib import Path
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader
 
+import signal_tracker
+
 logger = logging.getLogger(__name__)
 
 REPORTS_DIR = Path(__file__).parent.parent / "reports"
@@ -26,6 +28,8 @@ def build(
     dart_data: dict | None = None,
     perf_rows: list | None = None,
     perf_summary=None,
+    perf_summaries: list | None = None,
+    regime=None,
     funnel=None,
     watchlist: list | None = None,
     watch_delta=None,
@@ -45,6 +49,11 @@ def build(
         name_map: {ticker: 종목명}
         comments: {ticker: AI 코멘트}
         charts: {ticker: plotly div HTML}
+        perf_summaries: list[signal_tracker.PerfSummary] — 청산 규칙 3종(현행·지연·
+            계단식) 비교 요약. 하나로 갈아치우지 않고 나란히 기록해, 앞으로 쌓이는
+            실전 데이터가 그대로 아웃오브샘플 비교가 되게 한다(설계서 §7.11)
+        regime: collectors.macro.RegimeState | None — 지수 60일선 국면.
+            **신호를 거르지 않고 맥락으로만 표시한다**(사후 선택 의심, §7.11)
         watch_delta: watch_tracker.WatchDelta | None — 워치리스트 전이
             (연속 등재일수·신규/유지/승격/이탈). None이면 관련 표시를 생략
         news_collected_at: 뉴스 수집 시각 라벨(KST). 뉴스 API는 과거 조회가 안 돼
@@ -75,6 +84,12 @@ def build(
         dart_data=dart_data or {},
         perf_rows=perf_rows or [],
         perf_summary=perf_summary,
+        perf_summaries=perf_summaries or [],
+        regime=regime,
+        # 카드의 '추격 주의/위험' 임계값. 판정 기준이 signal_tracker와 갈리지
+        # 않도록 상수를 한 곳에서 가져온다.
+        chase_warn=signal_tracker.CHASE_WARN_PCT,
+        chase_alert=signal_tracker.CHASE_ALERT_PCT,
         funnel=funnel,
         watchlist=watchlist or [],
         watch_delta=watch_delta,

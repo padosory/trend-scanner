@@ -90,6 +90,50 @@ def _fetch_btc_dominance() -> float:
         return float("nan")
 
 
+@dataclass
+class RegimeState:
+    """지수가 60일선 위에 있는지 — 국면 맥락 표시용.
+
+    신호를 차단하는 필터가 **아니다.** 60일선 노출조절은 백테스트에서 위험조정
+    성과를 크게 올렸지만(Calmar 0.35→0.55), 코스닥 지수로 바꾸면 오히려 나빠지고
+    (0.22) 차단된 거래의 평균 수익도 양수(+0.54%)였다. 그럴듯한 메커니즘이 있는
+    효과라면 나오지 않을 패턴이라 사후 선택으로 보고, 리포트에는 맥락 정보로만
+    띄운다(설계서 §7.11, strategy_lab BOARD.md의 H4 60일선 커브핏 경고와 같은 건).
+    """
+    kospi_above: "bool | None" = None
+    kosdaq_above: "bool | None" = None
+
+    @property
+    def label(self) -> str:
+        def one(name: str, v: "bool | None") -> str:
+            if v is None:
+                return f"{name} —"
+            return f"{name} {'60일선 위' if v else '60일선 아래'}"
+        return f"{one('KOSPI', self.kospi_above)} · {one('KOSDAQ', self.kosdaq_above)}"
+
+
+def fetch_regime(target_date: str, window: int = 60) -> RegimeState:
+    """KOSPI·KOSDAQ이 각각 60일 이동평균 위인지 조회한다. 실패한 쪽은 None."""
+    import FinanceDataReader as fdr
+
+    end = pd.Timestamp(target_date)
+    start = (end - pd.DateOffset(days=window * 3)).strftime("%Y-%m-%d")
+    end_str = end.strftime("%Y-%m-%d")
+
+    def above(symbol: str) -> "bool | None":
+        try:
+            df = fdr.DataReader(symbol, start, end_str)
+            close = df["Close"].dropna()
+            if len(close) < window:
+                return None
+            return bool(close.iloc[-1] > close.tail(window).mean())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("%s 국면 조회 실패: %s", symbol, exc)
+            return None
+
+    return RegimeState(kospi_above=above("KS11"), kosdaq_above=above("KQ11"))
+
+
 def fetch(target_date: str) -> "MacroData | None":
     """target_date(YYYYMMDD) 이하 마지막 거래일 기준 거시경제 스냅샷을 반환한다."""
     import FinanceDataReader as fdr

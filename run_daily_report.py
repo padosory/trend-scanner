@@ -173,8 +173,14 @@ def main() -> int:
                 _ohlcv_cache[ticker] = None
         return _ohlcv_cache[ticker]
 
+    # 표 본문은 현행 규칙으로 낸다(과거 리포트와 비교 연속성). 요약은 세 규칙을
+    # 나란히 내서, 앞으로 쌓이는 실전 기록이 그대로 아웃오브샘플 비교가 되게 한다.
     perf_rows = signal_tracker.evaluate(effective_date, _ohlcv_lookup, lookback_days=30)
     perf_summary = signal_tracker.summarize(effective_date, _ohlcv_lookup, window_days=90)
+    perf_summaries = signal_tracker.summarize_rules(effective_date, _ohlcv_lookup, window_days=90)
+
+    from collectors.macro import fetch_regime
+    regime = fetch_regime(effective_date.strftime("%Y%m%d"))
 
     # ── 6-2. 워치리스트 전이 추적 (연속 등재일수 · 신규/유지/승격/이탈) ──────
     # 워치리스트는 무상태로 재계산되므로 여기서 스캔 간 상태를 이어붙인다.
@@ -224,6 +230,8 @@ def main() -> int:
         dart_data=dart_data,
         perf_rows=perf_rows,
         perf_summary=perf_summary,
+        perf_summaries=perf_summaries,
+        regime=regime,
         funnel=funnel,
         watchlist=watchlist,
         watch_delta=watch_delta,
