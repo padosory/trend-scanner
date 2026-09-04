@@ -135,11 +135,25 @@ jobs:
 
       # ── GitHub Pages 배포 (public repo — 폰에서 리포트 열람용) ─────────────
       # Settings → Pages → Source 를 "GitHub Actions"로 설정해야 한다.
+      #
+      # 리포트가 실제로 만들어졌을 때만 배포한다. 백업 스케줄이 --skip-if-current로
+      # 즉시 종료하면(본 실행이 이미 마지막 거래일을 처리한 정상 상황) reports/가
+      # 생성되지 않는다 — 그 폴더는 builder.build() 안에서만 만들어지고 .gitignore
+      # 대상이라 체크아웃에도 없다. 가드가 없으면 upload-pages-artifact가 없는
+      # 경로에서 죽어, 할 일이 없다고 올바르게 판단한 실행이 실패로 찍힌다
+      # (실측: 2026-09-02 #69, 09-03 #71, 09-04 #73 — 전부 40초대에 실패).
+      # 그러면 진짜 실패 알림이 가짜 경보에 묻힌다.
+      #
+      # 스킵 시 배포를 건너뛰면 직전 배포가 그대로 살아 있으므로 리포트는 유지된다.
+      # 스캔이 신선도 검증으로 exit 1 하는 경우는 잡 자체가 실패해 이 스텝에
+      # 도달하지 않는다 — 낡은 리포트가 재발행되지 않는 안전장치는 그대로다.
       - name: Upload Pages artifact
+        if: hashFiles('reports/*') != ''
         uses: actions/upload-pages-artifact@v3
         with:
           path: reports/
 
       - name: Deploy to GitHub Pages
         id: deploy
+        if: hashFiles('reports/*') != ''
         uses: actions/deploy-pages@v4
