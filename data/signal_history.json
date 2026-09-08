@@ -286,5 +286,11 @@
     "ticker": "351320",
     "name": "넥사다이내믹스",
     "signal_close": 3725.0
+  },
+  {
+    "date": "2026-09-08",
+    "ticker": "010955",
+    "name": "S-Oil우",
+    "signal_close": 75000.0
   }
 ]
