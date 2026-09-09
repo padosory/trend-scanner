@@ -292,5 +292,17 @@
     "ticker": "010955",
     "name": "S-Oil우",
     "signal_close": 75000.0
+  },
+  {
+    "date": "2026-09-09",
+    "ticker": "052860",
+    "name": "아이앤씨",
+    "signal_close": 7210.0
+  },
+  {
+    "date": "2026-09-09",
+    "ticker": "096770",
+    "name": "SK이노베이션",
+    "signal_close": 153500.0
   }
 ]
