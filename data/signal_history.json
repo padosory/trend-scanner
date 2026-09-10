@@ -304,5 +304,17 @@
     "ticker": "096770",
     "name": "SK이노베이션",
     "signal_close": 153500.0
+  },
+  {
+    "date": "2026-09-10",
+    "ticker": "224060",
+    "name": "더코디",
+    "signal_close": 9890.0
+  },
+  {
+    "date": "2026-09-10",
+    "ticker": "131290",
+    "name": "티에스이",
+    "signal_close": 306500.0
   }
 ]
