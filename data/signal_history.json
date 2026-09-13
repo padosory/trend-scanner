@@ -316,5 +316,11 @@
     "ticker": "131290",
     "name": "티에스이",
     "signal_close": 306500.0
+  },
+  {
+    "date": "2026-09-11",
+    "ticker": "294870",
+    "name": "IPARK현대산업개발",
+    "signal_close": 24850.0
   }
 ]
