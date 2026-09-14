@@ -322,5 +322,11 @@
     "ticker": "294870",
     "name": "IPARK현대산업개발",
     "signal_close": 24850.0
+  },
+  {
+    "date": "2026-09-14",
+    "ticker": "071200",
+    "name": "인피니트헬스케어",
+    "signal_close": 11310.0
   }
 ]
