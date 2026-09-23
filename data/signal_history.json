@@ -358,5 +358,29 @@
     "ticker": "064290",
     "name": "인텍플러스",
     "signal_close": 56100.0
+  },
+  {
+    "date": "2026-09-23",
+    "ticker": "109670",
+    "name": "씨싸이트",
+    "signal_close": 11400.0
+  },
+  {
+    "date": "2026-09-23",
+    "ticker": "010955",
+    "name": "S-Oil우",
+    "signal_close": 83600.0
+  },
+  {
+    "date": "2026-09-23",
+    "ticker": "077500",
+    "name": "유니퀘스트",
+    "signal_close": 9150.0
+  },
+  {
+    "date": "2026-09-23",
+    "ticker": "053800",
+    "name": "안랩",
+    "signal_close": 73600.0
   }
 ]
