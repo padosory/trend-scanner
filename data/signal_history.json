@@ -382,5 +382,17 @@
     "ticker": "053800",
     "name": "안랩",
     "signal_close": 73600.0
+  },
+  {
+    "date": "2026-09-28",
+    "ticker": "092870",
+    "name": "엑시콘",
+    "signal_close": 46100.0
+  },
+  {
+    "date": "2026-09-28",
+    "ticker": "052860",
+    "name": "아이앤씨",
+    "signal_close": 7490.0
   }
 ]
