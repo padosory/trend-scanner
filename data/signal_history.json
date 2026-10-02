@@ -406,5 +406,41 @@
     "ticker": "219130",
     "name": "타이거일렉",
     "signal_close": 91000.0
+  },
+  {
+    "date": "2026-10-01",
+    "ticker": "092870",
+    "name": "엑시콘",
+    "signal_close": 53200.0
+  },
+  {
+    "date": "2026-10-01",
+    "ticker": "192650",
+    "name": "드림텍",
+    "signal_close": 9100.0
+  },
+  {
+    "date": "2026-10-01",
+    "ticker": "340450",
+    "name": "지씨지놈",
+    "signal_close": 9270.0
+  },
+  {
+    "date": "2026-10-01",
+    "ticker": "097800",
+    "name": "윈팩",
+    "signal_close": 3835.0
+  },
+  {
+    "date": "2026-10-01",
+    "ticker": "003160",
+    "name": "디아이",
+    "signal_close": 42500.0
+  },
+  {
+    "date": "2026-10-01",
+    "ticker": "159010",
+    "name": "아스플로",
+    "signal_close": 32250.0
   }
 ]

@@ -1,5 +1,5 @@
 {
-  "last_scan": "2026-09-30",
+  "last_scan": "2026-10-01",
   "items": {
     "089860": {
       "first_seen": "2026-09-03",
@@ -8,35 +8,35 @@
       "reason": "고가 근접",
       "proximity_pct": 94.5,
       "high_52w": 53100.0,
-      "out_streak": 0,
+      "out_streak": 1,
       "shape": "수축"
     },
     "098120": {
       "first_seen": "2026-09-10",
-      "last_seen": "2026-09-30",
-      "days": 10,
+      "last_seen": "2026-10-01",
+      "days": 11,
       "reason": "고가 근접",
-      "proximity_pct": 90.1,
+      "proximity_pct": 92.9,
       "high_52w": 61900.0,
       "out_streak": 0,
       "shape": "수축"
     },
     "021240": {
       "first_seen": "2026-09-14",
-      "last_seen": "2026-09-30",
-      "days": 10,
+      "last_seen": "2026-10-01",
+      "days": 11,
       "reason": "고가 근접",
-      "proximity_pct": 91.0,
+      "proximity_pct": 90.8,
       "high_52w": 109200.0,
       "out_streak": 0,
       "shape": "수축"
     },
     "041960": {
       "first_seen": "2026-09-15",
-      "last_seen": "2026-09-30",
-      "days": 9,
+      "last_seen": "2026-10-01",
+      "days": 10,
       "reason": "고가 근접",
-      "proximity_pct": 90.3,
+      "proximity_pct": 91.0,
       "high_52w": 10790.0,
       "out_streak": 0,
       "shape": "수축"
@@ -48,78 +48,58 @@
       "reason": "고가 근접",
       "proximity_pct": 91.3,
       "high_52w": 25350.0,
-      "out_streak": 0,
-      "shape": "정체"
-    },
-    "051160": {
-      "first_seen": "2026-09-17",
-      "last_seen": "2026-09-29",
-      "days": 6,
-      "reason": "고가 근접",
-      "proximity_pct": 94.0,
-      "high_52w": 13400.0,
       "out_streak": 1,
       "shape": "정체"
     },
     "033780": {
       "first_seen": "2026-09-17",
-      "last_seen": "2026-09-30",
-      "days": 7,
+      "last_seen": "2026-10-01",
+      "days": 8,
       "reason": "고가 근접",
-      "proximity_pct": 91.7,
+      "proximity_pct": 90.8,
       "high_52w": 192400.0,
       "out_streak": 0,
-      "shape": "정체"
+      "shape": "수축"
     },
     "031980": {
       "first_seen": "2026-09-18",
-      "last_seen": "2026-09-29",
-      "days": 4,
+      "last_seen": "2026-10-01",
+      "days": 5,
       "reason": "거래량 미달",
-      "proximity_pct": 100.0,
-      "high_52w": 180800.0,
-      "out_streak": 1,
+      "proximity_pct": 99.8,
+      "high_52w": 194300.0,
+      "out_streak": 0,
       "shape": "정체"
     },
     "036800": {
       "first_seen": "2026-09-21",
-      "last_seen": "2026-09-30",
-      "days": 5,
+      "last_seen": "2026-10-01",
+      "days": 6,
       "reason": "고가 근접",
-      "proximity_pct": 92.5,
+      "proximity_pct": 94.2,
       "high_52w": 8320.0,
       "out_streak": 0,
-      "shape": "수축"
+      "shape": "정체"
     },
     "036540": {
       "first_seen": "2026-09-21",
-      "last_seen": "2026-09-30",
-      "days": 6,
+      "last_seen": "2026-10-01",
+      "days": 7,
       "reason": "고가 근접",
-      "proximity_pct": 92.5,
-      "high_52w": 11640.0,
+      "proximity_pct": 93.8,
+      "high_52w": 11850.0,
       "out_streak": 0,
       "shape": "수축"
     },
     "003690": {
       "first_seen": "2026-09-22",
-      "last_seen": "2026-09-30",
-      "days": 4,
+      "last_seen": "2026-10-01",
+      "days": 5,
       "reason": "고가 근접",
-      "proximity_pct": 93.6,
+      "proximity_pct": 91.9,
       "high_52w": 15660.0,
       "out_streak": 0,
       "shape": "정체"
-    },
-    "159010": {
-      "first_seen": "2026-09-22",
-      "last_seen": "2026-09-30",
-      "days": 5,
-      "reason": "고가 근접",
-      "proximity_pct": 91.6,
-      "high_52w": 32150.0,
-      "out_streak": 0,
-      "shape": "수축"
     },
     "064290": {
       "first_seen": "2026-09-23",
@@ -128,7 +108,7 @@
       "reason": "고가 근접",
       "proximity_pct": 92.6,
       "high_52w": 58100.0,
-      "out_streak": 0,
+      "out_streak": 1,
       "shape": "수축"
     },
     "055550": {
@@ -138,93 +118,38 @@
       "reason": "고가 근접",
       "proximity_pct": 91.4,
       "high_52w": 116500.0,
-      "out_streak": 0,
+      "out_streak": 1,
       "shape": "정체"
     },
     "086790": {
       "first_seen": "2026-09-23",
-      "last_seen": "2026-09-30",
-      "days": 4,
+      "last_seen": "2026-10-01",
+      "days": 5,
       "reason": "고가 근접",
-      "proximity_pct": 91.7,
+      "proximity_pct": 90.5,
       "high_52w": 142500.0,
       "out_streak": 0,
       "shape": "정체"
     },
     "080580": {
       "first_seen": "2026-09-23",
-      "last_seen": "2026-09-29",
-      "days": 3,
+      "last_seen": "2026-10-01",
+      "days": 4,
       "reason": "고가 근접",
-      "proximity_pct": 92.5,
+      "proximity_pct": 93.8,
       "high_52w": 27500.0,
-      "out_streak": 1,
-      "shape": "수축"
+      "out_streak": 0,
+      "shape": "정체"
     },
     "131290": {
       "first_seen": "2026-09-23",
-      "last_seen": "2026-09-30",
-      "days": 4,
+      "last_seen": "2026-10-01",
+      "days": 5,
       "reason": "고가 근접",
-      "proximity_pct": 90.6,
+      "proximity_pct": 94.7,
       "high_52w": 318500.0,
       "out_streak": 0,
       "shape": "정체"
-    },
-    "109670": {
-      "first_seen": "2026-09-28",
-      "last_seen": "2026-09-29",
-      "days": 2,
-      "reason": "거래량 미달",
-      "proximity_pct": 100.0,
-      "high_52w": 16730.0,
-      "out_streak": 1
-    },
-    "006120": {
-      "first_seen": "2026-09-28",
-      "last_seen": "2026-09-29",
-      "days": 2,
-      "reason": "고가 근접",
-      "proximity_pct": 92.7,
-      "high_52w": 68300.0,
-      "out_streak": 1
-    },
-    "010950": {
-      "first_seen": "2026-09-28",
-      "last_seen": "2026-09-30",
-      "days": 2,
-      "reason": "고가 근접",
-      "proximity_pct": 91.5,
-      "high_52w": 177100.0,
-      "out_streak": 0
-    },
-    "005180": {
-      "first_seen": "2026-09-28",
-      "last_seen": "2026-09-29",
-      "days": 2,
-      "reason": "고가 근접",
-      "proximity_pct": 90.6,
-      "high_52w": 96000.0,
-      "out_streak": 1
-    },
-    "340450": {
-      "first_seen": "2026-09-28",
-      "last_seen": "2026-09-30",
-      "days": 3,
-      "reason": "고가 근접",
-      "proximity_pct": 91.4,
-      "high_52w": 9520.0,
-      "out_streak": 0,
-      "shape": "정체"
-    },
-    "092870": {
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "days": 1,
-      "reason": "거래량 미달",
-      "proximity_pct": 99.3,
-      "high_52w": 48850.0,
-      "out_streak": 1
     },
     "029460": {
       "first_seen": "2026-09-29",
@@ -233,52 +158,35 @@
       "reason": "고가 근접",
       "proximity_pct": 94.3,
       "high_52w": 46900.0,
-      "out_streak": 0
-    },
-    "252990": {
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "days": 1,
-      "reason": "거래량 미달",
-      "proximity_pct": 98.5,
-      "high_52w": 20300.0,
       "out_streak": 1
     },
     "052860": {
       "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "days": 1,
-      "reason": "거래량 미달",
-      "proximity_pct": 97.9,
+      "last_seen": "2026-10-01",
+      "days": 2,
+      "reason": "고가 근접",
+      "proximity_pct": 92.0,
       "high_52w": 8220.0,
-      "out_streak": 1
+      "out_streak": 0
     },
     "092730": {
       "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "days": 1,
+      "last_seen": "2026-10-01",
+      "days": 2,
       "reason": "고가 근접",
-      "proximity_pct": 91.7,
+      "proximity_pct": 90.0,
       "high_52w": 26000.0,
-      "out_streak": 1
-    },
-    "446540": {
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "days": 1,
-      "reason": "고가 근접",
-      "proximity_pct": 90.8,
-      "high_52w": 11660.0,
-      "out_streak": 1
+      "out_streak": 0
     },
     "101160": {
       "first_seen": "2026-09-29",
-      "last_seen": "2026-09-30",
-      "days": 2,
+      "last_seen": "2026-10-01",
+      "days": 3,
       "reason": "고가 근접",
-      "proximity_pct": 91.0,
+      "proximity_pct": 93.6,
       "high_52w": 35400.0,
-      "out_streak": 0
+      "out_streak": 0,
+      "shape": "정체"
     },
     "219130": {
       "first_seen": "2026-09-30",
@@ -287,7 +195,7 @@
       "reason": "거래량 미달",
       "proximity_pct": 95.7,
       "high_52w": 95900.0,
-      "out_streak": 0
+      "out_streak": 1
     },
     "053800": {
       "first_seen": "2026-09-30",
@@ -296,24 +204,96 @@
       "reason": "고가 근접",
       "proximity_pct": 94.9,
       "high_52w": 78800.0,
-      "out_streak": 0
+      "out_streak": 1
     },
     "049430": {
       "first_seen": "2026-09-30",
-      "last_seen": "2026-09-30",
-      "days": 1,
+      "last_seen": "2026-10-01",
+      "days": 2,
       "reason": "고가 근접",
-      "proximity_pct": 93.9,
+      "proximity_pct": 93.7,
       "high_52w": 23650.0,
       "out_streak": 0
     },
-    "096770": {
-      "first_seen": "2026-09-30",
-      "last_seen": "2026-09-30",
+    "077500": {
+      "first_seen": "2026-10-01",
+      "last_seen": "2026-10-01",
+      "days": 1,
+      "reason": "거래량 미달",
+      "proximity_pct": 97.9,
+      "high_52w": 10850.0,
+      "out_streak": 0
+    },
+    "068930": {
+      "first_seen": "2026-10-01",
+      "last_seen": "2026-10-01",
       "days": 1,
       "reason": "고가 근접",
-      "proximity_pct": 90.6,
-      "high_52w": 164700.0,
+      "proximity_pct": 94.9,
+      "high_52w": 10000.0,
+      "out_streak": 0
+    },
+    "425420": {
+      "first_seen": "2026-10-01",
+      "last_seen": "2026-10-01",
+      "days": 1,
+      "reason": "고가 근접",
+      "proximity_pct": 94.5,
+      "high_52w": 77700.0,
+      "out_streak": 0
+    },
+    "453340": {
+      "first_seen": "2026-10-01",
+      "last_seen": "2026-10-01",
+      "days": 1,
+      "reason": "고가 근접",
+      "proximity_pct": 94.3,
+      "high_52w": 19950.0,
+      "out_streak": 0
+    },
+    "003350": {
+      "first_seen": "2026-10-01",
+      "last_seen": "2026-10-01",
+      "days": 1,
+      "reason": "고가 근접",
+      "proximity_pct": 93.4,
+      "high_52w": 17910.0,
+      "out_streak": 0
+    },
+    "119850": {
+      "first_seen": "2026-10-01",
+      "last_seen": "2026-10-01",
+      "days": 1,
+      "reason": "고가 근접",
+      "proximity_pct": 92.9,
+      "high_52w": 59000.0,
+      "out_streak": 0
+    },
+    "000500": {
+      "first_seen": "2026-10-01",
+      "last_seen": "2026-10-01",
+      "days": 1,
+      "reason": "고가 근접",
+      "proximity_pct": 91.1,
+      "high_52w": 352860.0,
+      "out_streak": 0
+    },
+    "010955": {
+      "first_seen": "2026-10-01",
+      "last_seen": "2026-10-01",
+      "days": 1,
+      "reason": "고가 근접",
+      "proximity_pct": 90.8,
+      "high_52w": 89300.0,
+      "out_streak": 0
+    },
+    "192820": {
+      "first_seen": "2026-10-01",
+      "last_seen": "2026-10-01",
+      "days": 1,
+      "reason": "고가 근접",
+      "proximity_pct": 90.0,
+      "high_52w": 306500.0,
       "out_streak": 0
     }
   },
@@ -2380,6 +2360,88 @@
           "days_watched": 1,
           "cause": "밴드 이탈",
           "proximity_pct": 87.8
+        }
+      ]
+    },
+    "2026-10-01": {
+      "new": 9,
+      "kept": 15,
+      "promoted": 3,
+      "exited": 8,
+      "baseline": false,
+      "promoted_items": [
+        {
+          "ticker": "159010",
+          "name": "아스플로",
+          "days_watched": 5
+        },
+        {
+          "ticker": "340450",
+          "name": "지씨지놈",
+          "days_watched": 3
+        },
+        {
+          "ticker": "092870",
+          "name": "엑시콘",
+          "days_watched": 1
+        }
+      ],
+      "exited_items": [
+        {
+          "ticker": "051160",
+          "name": "지어소프트",
+          "days_watched": 6,
+          "cause": "밴드 이탈",
+          "proximity_pct": 87.5
+        },
+        {
+          "ticker": "109670",
+          "name": "씨싸이트",
+          "days_watched": 2,
+          "cause": "밴드 이탈",
+          "proximity_pct": 84.0
+        },
+        {
+          "ticker": "006120",
+          "name": "SK디스커버리",
+          "days_watched": 2,
+          "cause": "필터 탈락",
+          "proximity_pct": 96.2
+        },
+        {
+          "ticker": "010950",
+          "name": "S-Oil",
+          "days_watched": 2,
+          "cause": "밴드 이탈",
+          "proximity_pct": 85.4
+        },
+        {
+          "ticker": "005180",
+          "name": "빙그레",
+          "days_watched": 2,
+          "cause": "밴드 이탈",
+          "proximity_pct": 88.1
+        },
+        {
+          "ticker": "252990",
+          "name": "샘씨엔에스",
+          "days_watched": 1,
+          "cause": "필터 탈락",
+          "proximity_pct": 97.8
+        },
+        {
+          "ticker": "446540",
+          "name": "메가터치",
+          "days_watched": 1,
+          "cause": "필터 탈락",
+          "proximity_pct": 96.0
+        },
+        {
+          "ticker": "096770",
+          "name": "SK이노베이션",
+          "days_watched": 1,
+          "cause": "밴드 이탈",
+          "proximity_pct": 85.7
         }
       ]
     }
