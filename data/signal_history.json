@@ -526,5 +526,11 @@
     "ticker": "006120",
     "name": "SK디스커버리",
     "signal_close": 71600.0
+  },
+  {
+    "date": "2026-10-08",
+    "ticker": "217190",
+    "name": "제너셈",
+    "signal_close": 10200.0
   }
 ]
