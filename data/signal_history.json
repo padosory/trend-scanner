@@ -550,5 +550,23 @@
     "ticker": "028670",
     "name": "팬오션",
     "signal_close": 7230.0
+  },
+  {
+    "date": "2026-10-16",
+    "ticker": "396300",
+    "name": "HT로보틱스",
+    "signal_close": 8830.0
+  },
+  {
+    "date": "2026-10-16",
+    "ticker": "355690",
+    "name": "에이텀",
+    "signal_close": 7980.0
+  },
+  {
+    "date": "2026-10-16",
+    "ticker": "025000",
+    "name": "KPX케미칼",
+    "signal_close": 65500.0
   }
 ]
