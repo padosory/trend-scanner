@@ -5,7 +5,7 @@
   python run_daily_report.py --date 20260625     # 특정 날짜 스캔
   python run_daily_report.py --skip-ai           # Gemini 없이 실행
   python run_daily_report.py --skip-telegram     # Telegram 알림 건너뜀
-  python run_daily_report.py --skip-if-current   # 이미 최신 거래일이 반영돼 있으면 아무것도 안 함
+  python run_daily_report.py --skip-if-current   # 이미 최신 거래일 리포트가 끝나 있으면 아무것도 안 함
 
 종료 코드는 0(정상) 또는 1(스캔 기준일이 마지막 거래일보다 뒤처짐)이다. 1로 끝나면
 워크플로가 실패로 표시되고 Pages 배포가 건너뛰어져, 낡은 리포트가 최신인 척
@@ -47,7 +47,7 @@ def main() -> int:
     parser.add_argument("--skip-ai", action="store_true", help="Gemini AI 분석 건너뜀")
     parser.add_argument("--skip-telegram", action="store_true", help="Telegram 알림 건너뜀")
     parser.add_argument("--skip-if-current", action="store_true",
-                        help="마지막 거래일이 이미 반영돼 있으면 즉시 종료 (백업 스케줄용)")
+                        help="마지막 거래일 리포트가 이미 완료됐으면 즉시 종료 (스케줄 실행용)")
     args = parser.parse_args()
 
     # 마지막 '완결된' 거래일. 스캔 타겟이자 신선도 검증의 기준선이다(§아래 검증).
@@ -61,15 +61,17 @@ def main() -> int:
     )
 
     if args.skip_if_current:
-        # 백업 스케줄용. 앞선 실행이 이미 마지막 거래일을 처리했으면 전체 스캔을
-        # 건너뛴다 — 중복 텔레그램·중복 AI 호출을 막는다.
-        import macro_state
-        done = macro_state.load().get("date")
-        if last_trading_day is not None and done == last_trading_day.strftime("%Y-%m-%d"):
-            logger.info("이미 최신(%s) 반영됨 — 스킵", done)
+        # 스케줄 실행용. 앞선 실행이 이미 마지막 거래일 리포트를 끝냈으면 전체
+        # 스캔을 건너뛴다 — 중복 리포트·중복 텔레그램·중복 AI 호출을 막는다.
+        # 마커는 run_state 가 리포트 완료 시점에만 남긴다(§run_state 모듈 주석).
+        import run_state
+        if run_state.is_done(last_trading_day):
+            logger.info("이미 최신(%s) 리포트 완료 — 스킵",
+                        last_trading_day.strftime("%Y-%m-%d"))
             return 0
-        logger.info("최신 거래일(%s) 미반영(마지막 처리 %s) — 스캔 진행",
-                    last_trading_day.date() if last_trading_day is not None else "판정불가", done)
+        logger.info("최신 거래일(%s) 리포트 미완료(마지막 완료 %s) — 스캔 진행",
+                    last_trading_day.date() if last_trading_day is not None else "판정불가",
+                    run_state.load().get("last_report_date", "없음"))
 
     logger.info("=== 일별 스캔 시작 (타겟: %s, 마지막 거래일: %s) ===",
                 target_date,
@@ -262,6 +264,13 @@ def main() -> int:
     if stale_warning:
         logger.error("=== 실패 종료 (신선도) — %s ===", stale_warning)
         return 1
+
+    # 이 거래일은 끝났다 — 뒤따르는 스케줄 실행이 중복 스캔하지 않도록 마커를 남긴다.
+    # 위 신선도 return 1 **뒤**에 둔다: 낡은 데이터로 만든 리포트를 '완료'로 찍으면
+    # 백업이 복구할 기회를 잃는다. --date 로 과거를 수동 재생성한 경우도 제외한다.
+    if args.date is None:
+        import run_state
+        run_state.mark_done(effective_date, completed_at=now_kst_label())
 
     logger.info("=== 완료 ===")
     return 0

@@ -12,10 +12,11 @@ on:
     # 0-4 = UTC 일~목 = KST 월~금.
     - cron: "13 20 * * 0-4"
     # 백업 — 앞 실행이 아예 누락되거나 크게 밀렸을 때만 일한다. 이미 마지막
-    # 거래일이 반영돼 있으면 --skip-if-current로 즉시 종료하므로, 정상일엔
+    # 거래일 리포트가 끝나 있으면 --skip-if-current로 즉시 종료하므로, 정상일엔
     # 중복 스캔·중복 알림이 발생하지 않는다.
-    # 이 문자열을 바꾸면 아래 'Run daily scan'의 github.event.schedule 비교값도
-    # 같이 바꿔야 한다. 어긋나면 백업이 --skip-if-current 없이 전체 재스캔한다.
+    # 스케줄 실행은 전부 --skip-if-current를 달고 돈다(아래 'Run daily scan')
+    # — 어느 슬롯이 먼저 발행되든 그날의 첫 실행만 일하고 나머지는 3초에 끝난다.
+    # 그래서 여기에 슬롯을 더 추가해도 리포트가 늘지 않는다.
     - cron: "37 22 * * 0-4"    # 22:37 UTC = 07:37 KST (여전히 개장 전)
   workflow_dispatch:            # 수동 실행 가능
 
@@ -88,10 +89,17 @@ jobs:
           ECOS_API_KEY:        ${{ secrets.ECOS_API_KEY }}
           # GitHub Pages URL: username.github.io/repo-name (Telegram 리포트 링크로 사용)
           GITHUB_PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
-        # 백업 스케줄(23:00 UTC)은 앞 실행이 실패·누락됐을 때만 실제로 스캔한다.
+        # 스케줄 실행은 전부 --skip-if-current를 단다. 그날 마지막 거래일 리포트가
+        # 이미 끝나 있으면(data/run_state.json 마커) 즉시 종료하므로, 둘째로 발행된
+        # 슬롯은 아무 일도 하지 않는다 — 어느 슬롯이 먼저 오든 순서와 무관하다.
+        # 특정 cron 문자열을 비교하던 이전 방식은 그 슬롯만 가드를 달았고, 마커가
+        # 외부 피드(FDR 코스피 날짜 + CoinGecko 도미넌스)에 묶여 있어 피드가 멈추면
+        # 가드가 통째로 무력화됐다 — 2026-09-21~10-13 거의 매일 리포트가 2회 발송.
+        # 수동 workflow_dispatch는 가드 없이 강제 재스캔한다(리포트 재생성용).
+        #
         # 스캔 기준일이 마지막 거래일에 못 미치면 이 스텝이 exit 1로 끝나고,
         # 아래 Pages 배포가 건너뛰어져 낡은 리포트가 최신인 척 재발행되지 않는다.
-        run: python run_daily_report.py ${{ github.event.schedule == '37 22 * * 0-4' && '--skip-if-current' || '' }}
+        run: python run_daily_report.py ${{ github.event_name == 'schedule' && '--skip-if-current' || '' }}
 
       - name: Save OHLCV parquet
         if: always()
