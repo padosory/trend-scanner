@@ -568,5 +568,17 @@
     "ticker": "025000",
     "name": "KPX케미칼",
     "signal_close": 65500.0
+  },
+  {
+    "date": "2026-10-19",
+    "ticker": "010580",
+    "name": "에스엠벡셀",
+    "signal_close": 4040.0
+  },
+  {
+    "date": "2026-10-19",
+    "ticker": "419050",
+    "name": "삼기에너지솔루션즈",
+    "signal_close": 2645.0
   }
 ]
