@@ -592,5 +592,35 @@
     "ticker": "144960",
     "name": "뉴파워프라즈마",
     "signal_close": 14940.0
+  },
+  {
+    "date": "2026-10-28",
+    "ticker": "092870",
+    "name": "엑시콘",
+    "signal_close": 68000.0
+  },
+  {
+    "date": "2026-10-28",
+    "ticker": "425420",
+    "name": "티에프이",
+    "signal_close": 84800.0
+  },
+  {
+    "date": "2026-10-28",
+    "ticker": "263860",
+    "name": "지니언스",
+    "signal_close": 27300.0
+  },
+  {
+    "date": "2026-10-28",
+    "ticker": "144960",
+    "name": "뉴파워프라즈마",
+    "signal_close": 15420.0
+  },
+  {
+    "date": "2026-10-28",
+    "ticker": "012030",
+    "name": "DB",
+    "signal_close": 2555.0
   }
 ]
