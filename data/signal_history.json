@@ -622,5 +622,17 @@
     "ticker": "012030",
     "name": "DB",
     "signal_close": 2555.0
+  },
+  {
+    "date": "2026-10-29",
+    "ticker": "159010",
+    "name": "아스플로",
+    "signal_close": 35750.0
+  },
+  {
+    "date": "2026-10-29",
+    "ticker": "093320",
+    "name": "케이아이엔엑스",
+    "signal_close": 176300.0
   }
 ]
