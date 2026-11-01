@@ -104,14 +104,14 @@ def main() -> int:
     macro = macro_fetch(effective_date.strftime("%Y%m%d"))
 
     # BTC 도미넌스 등락은 전일 스냅샷과 비교해 계산 (무료 API가 현재값만 제공)
-    if macro is not None and macro.btc_dominance == macro.btc_dominance:
+    # --date 과거 재현은 '현재' 도미넌스밖에 못 얻으므로 스냅샷을 건드리지 않는다.
+    if args.date is None and macro is not None and macro.btc_dominance == macro.btc_dominance:
         import macro_state
-        prev = macro_state.load()
-        today_str = macro.date.strftime("%Y-%m-%d")
-        prev_dom = prev.get("btc_dominance")
-        if prev_dom and prev.get("date") != today_str:
-            macro.btc_dominance_change_pct = (macro.btc_dominance / prev_dom - 1) * 100
-        macro_state.save({"date": today_str, "btc_dominance": macro.btc_dominance})
+        change = macro_state.update_dominance(
+            macro.btc_dominance, effective_date.strftime("%Y-%m-%d")
+        )
+        if change is not None:
+            macro.btc_dominance_change_pct = change
 
     # ── 4. 뉴스 수집 (국내: 네이버 API, 글로벌: Finnhub API) ──────────────────
     # 뉴스 API는 과거 조회를 지원하지 않아 항상 '지금 최신'이 온다 → 스캔 기준일이

@@ -30,3 +30,22 @@ def save(snapshot: dict) -> None:
     STATE_PATH.write_text(
         json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+
+def update_dominance(current: float, scan_date: str) -> "float | None":
+    """오늘 도미넌스를 기록하고 직전 스캔 대비 등락률(%)을 반환한다. 비교 대상이 없으면 None.
+
+    날짜 키는 스캔 기준일(effective_date)이다. 전에는 FDR 코스피 응답의 마지막 행
+    날짜를 썼는데, 그 피드가 멈추면 매일 '같은 날'로 판정돼 등락률이 공란이 됐다.
+
+    같은 스캔일 재실행은 첫 실행의 비교 기준(base_dominance)을 유지한다. 기준을
+    덮어쓰면 재실행 때 등락률이 사라지거나 재실행 간 차이로 바뀐다.
+    """
+    prev = load()
+    if prev.get("date") == scan_date:
+        base = prev.get("base_dominance")
+    else:
+        base = prev.get("btc_dominance")
+
+    save({"date": scan_date, "btc_dominance": current, "base_dominance": base})
+    return (current / base - 1) * 100 if base else None
