@@ -39,8 +39,8 @@ _MAX_TRANS_DAYS = 180  # 전이 로그 보관 일수 (파일 무한 성장 방�
 # (부족하면 워치리스트 등재 당시 저장한 high_52w로 폴백).
 OhlcvLookup = Callable[[str], "pd.DataFrame | None"]
 
-SHAPE_COIL = "수축"    # 변동폭이 좁아지며 거래량이 마르는 중 — 매물 소화(강세 셋업)
-SHAPE_STALL = "정체"   # 변동폭·거래량이 줄지 않은 채 문턱에만 머무는 중
+SHAPE_COIL = "수축"    # 변동폭과 거래량이 함께 줄어드는 중
+SHAPE_STALL = "정체"   # 수축 조건 미충족 (횡보·상승·하락 모두 포함)
 
 CAUSE_RS_FAIL = "돌파·RS미달"
 CAUSE_BAND = "밴드 이탈"
@@ -188,7 +188,7 @@ def classify_shape(df: "pd.DataFrame | None", days: int) -> "Shape | None":
 
       수축 — 후반 변동폭이 전반보다(또는 체류 직전 베이스라인보다) 좁아지고
              거래량도 함께 마른 상태. 매도 물량이 소진되는 중.
-      정체 — 변동폭이 줄지 않은 채 문턱만 두드리는 상태. 매수세만 소모된다.
+      정체 — 수축 조건 미충족. 횡보뿐 아니라 체류 중 상승·하락한 종목도 포함한다.
 
     Args:
         df: 지표 적용 OHLCV (마지막 행 = 스캔 거래일). 체류 구간을 tail로 자른다.
@@ -235,9 +235,9 @@ def classify_shape(df: "pd.DataFrame | None", days: int) -> "Shape | None":
         f"거래량 {late_vol / early_vol:.1f}배"
     )
     detail += (
-        " — 변동폭이 좁아지고 거래량이 마르는 중(매물 소화)"
+        " — 변동폭·거래량 축소"
         if coiling
-        else " — 변동폭·거래량이 줄지 않은 채 문턱에 머무는 중"
+        else " — 수축 조건 미충족"
     )
     return Shape(SHAPE_COIL if coiling else SHAPE_STALL, detail, coiling)
 

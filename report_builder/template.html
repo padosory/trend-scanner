@@ -628,7 +628,7 @@ details.collapse .news-list { margin-top: 0; }
 .w-reason-vol  { background: rgba(245,124,0,.14);  color: #e8890c; }
 [data-theme="dark"] .w-reason-vol { color: #f0a63a; }
 
-/* 연속 등재일수 — 수축 없이 길어질 때만 경고색 (수축은 오히려 강세 셋업) */
+/* 연속 등재일수 — 수축 없이 길어질 때만 경고색 */
 .w-stale { color: #e8890c; font-weight: 600; }
 [data-theme="dark"] .w-stale { color: #f0a63a; }
 
@@ -1137,8 +1137,8 @@ footer {
           {% if watch_delta and not watch_delta.baseline %}<br>
           <b>대기</b>는 연속 등재 거래일 수입니다. 대기가 길다는 것 자체는 방향을 말해주지 않아
           체류 형태를 함께 표시합니다 —
-          <span class="w-shape w-shape-coil">수축</span> 변동폭이 좁아지고 거래량이 마르는 중(매물 소화·강세 셋업) ·
-          <span class="w-shape w-shape-stall">정체</span> 변동폭·거래량이 줄지 않은 채 문턱만 두드리는 중.
+          <span class="w-shape w-shape-coil">수축</span> 변동폭·거래량 축소(최근 표본에서 정체보다 양호) ·
+          <span class="w-shape w-shape-stall">정체</span> 수축 조건 미충족(횡보·상승·하락 모두 포함).
           수축 없이 대기만 길어질 때 주황색으로 표시합니다.<br>
           <b>승격/이탈</b>은 전 거래일 준비 종목의 결말이며, 90% 경계를 오가는 진동은
           이탈로 세지 않습니다(2회 연속 이탈 또는 88% 이탈 시 확정).
@@ -1167,7 +1167,7 @@ footer {
                 {% set sh = watch_delta.shapes.get(w.ticker) if watch_delta else none %}
                 {% set stale = wd and wd >= watch_delta.stale_days and not (sh and sh.coiling) %}
                 <td class="{{ 'w-stale' if stale else 'w-dim' }}"
-                    {% if stale %}title="{{ wd }}거래일째 수축 없이 문턱에 머무는 중 — 돌파 동력이 약해졌을 수 있습니다"{% endif %}>{% if wd %}{{ wd }}일{% else %}—{% endif %}{% if sh %}<span class="w-shape {{ 'w-shape-coil' if sh.coiling else 'w-shape-stall' }}" title="{{ sh.detail }}">{{ sh.label }}</span>{% endif %}</td>
+                    {% if stale %}title="{{ wd }}거래일째 수축 조건 없이 대기 중"{% endif %}>{% if wd %}{{ wd }}일{% else %}—{% endif %}{% if sh %}<span class="w-shape {{ 'w-shape-coil' if sh.coiling else 'w-shape-stall' }}" title="{{ sh.detail }}">{{ sh.label }}</span>{% endif %}</td>
                 <td>{{ "{:,.0f}".format(w.close) }}</td>
                 <td class="w-dim">{{ "%.1f" | format(w.proximity_pct) }}%</td>
                 <td class="w-dim">{% if w.vol_ratio == w.vol_ratio %}{{ "%.1f" | format(w.vol_ratio) }}×{% else %}—{% endif %}</td>
