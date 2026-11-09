@@ -664,5 +664,11 @@
     "ticker": "089860",
     "name": "롯데렌탈",
     "signal_close": 58500.0
+  },
+  {
+    "date": "2026-11-09",
+    "ticker": "267850",
+    "name": "아시아나IDT",
+    "signal_close": 14130.0
   }
 ]
