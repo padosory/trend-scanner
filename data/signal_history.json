@@ -670,5 +670,35 @@
     "ticker": "267850",
     "name": "아시아나IDT",
     "signal_close": 14130.0
+  },
+  {
+    "date": "2026-11-10",
+    "ticker": "180640",
+    "name": "한진칼",
+    "signal_close": 236500.0
+  },
+  {
+    "date": "2026-11-10",
+    "ticker": "089590",
+    "name": "제주항공",
+    "signal_close": 7500.0
+  },
+  {
+    "date": "2026-11-10",
+    "ticker": "272450",
+    "name": "진에어",
+    "signal_close": 7990.0
+  },
+  {
+    "date": "2026-11-10",
+    "ticker": "020560",
+    "name": "아시아나항공",
+    "signal_close": 8770.0
+  },
+  {
+    "date": "2026-11-10",
+    "ticker": "003490",
+    "name": "대한항공",
+    "signal_close": 32600.0
   }
 ]
