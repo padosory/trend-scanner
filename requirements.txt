@@ -3,7 +3,7 @@ finance-datareader
 pandas
 pyarrow
 # Phase 1 추가
-google-genai
+google-genai>=2.34,<4  # 3.x에서 기본 API 버전 변경 전례 — 다음 메이저는 확인 후 올릴 것
 plotly
 jinja2
 requests

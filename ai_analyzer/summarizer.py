@@ -27,7 +27,13 @@ def _get_client():
         api_key = os.environ.get("GEMINI_API_KEY", "")
         if not api_key:
             raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다")
-        _client = genai.Client(api_key=api_key)
+        # google-genai 3.0.0부터 기본 API가 v1으로 바뀌었는데 v1은 system_instruction을
+        # 거부함(400 "Developer instruction is not enabled for api version v1").
+        # v1beta를 명시해 SDK 기본값 변경에 휘둘리지 않게 고정.
+        _client = genai.Client(
+            api_key=api_key,
+            http_options=genai.types.HttpOptions(api_version="v1beta"),
+        )
     return _client
 
 
