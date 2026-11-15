@@ -111,4 +111,16 @@ def analyze(
 
     except Exception as exc:
         logger.warning("Gemini 분석 실패: %s", exc)
-        return "AI 요약 생성 실패", "AI 요약 생성 실패", {}
+        # 실패해도 CI는 초록불이라, 리포트만 보고 일시 장애(429/503)인지
+        # 고쳐야 할 문제(400 등)인지 구분할 수 있게 원인을 짧게 붙인다.
+        msg = f"AI 요약 생성 실패 ({_short_reason(exc)})"
+        return msg, msg, {}
+
+
+def _short_reason(exc: Exception) -> str:
+    """예외를 리포트에 넣을 한 줄 원인으로 줄인다. 전체 메시지는 로그에 있음."""
+    code = getattr(exc, "code", None)      # google.genai.errors.APIError
+    status = getattr(exc, "status", None)
+    if code is not None:
+        return f"{code} {status}" if status else str(code)
+    return type(exc).__name__              # JSONDecodeError, ValueError(키 없음) 등
