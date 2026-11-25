@@ -730,5 +730,23 @@
     "ticker": "489460",
     "name": "바이오비쥬",
     "signal_close": 16480.0
+  },
+  {
+    "date": "2026-11-25",
+    "ticker": "053800",
+    "name": "안랩",
+    "signal_close": 157900.0
+  },
+  {
+    "date": "2026-11-25",
+    "ticker": "150900",
+    "name": "파수AI",
+    "signal_close": 7550.0
+  },
+  {
+    "date": "2026-11-25",
+    "ticker": "192820",
+    "name": "코스맥스",
+    "signal_close": 329500.0
   }
 ]
